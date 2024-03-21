@@ -43,4 +43,3 @@ websockets==10.4
 gunicorn==20.1.0
 sqlalchemy
 gradio
-typing-extensions
