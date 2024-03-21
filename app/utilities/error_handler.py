@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 from typing import Dict, Any, Callable
-from sqlalchemy.exc import SQLAlchemyError
 from pymongo import errors as pymongo_errors
 from app.schemas.error import ErrorResponse
 from fastapi import HTTPException
@@ -11,11 +10,6 @@ from loguru import logger
 def handle_errors():
     try:
         yield
-    except SQLAlchemyError as e:
-        logger.error(f"Database error occurred: {e}")
-        response = ErrorResponse(
-            status_code=400, status="DatabaseError", message=str(e)
-        )
     except pymongo_errors.PyMongoError as e:
         logger.error(f"MongoDB error occurred: {e}")
         response = ErrorResponse(
