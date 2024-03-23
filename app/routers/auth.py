@@ -10,7 +10,7 @@ from app.serializers.userSerializers import userEntity, userResponseEntity
 from app.utilities import utils
 from app.schemas import user
 from app.oauth2 import AuthJWT
-from ...config import settings
+from config import settings
 
 
 router = APIRouter()
