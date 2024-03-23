@@ -8,7 +8,7 @@ from bson.objectid import ObjectId
 from app.serializers.userSerializers import userEntity
 
 from .database import User
-from .config import settings
+from ..config import settings
 
 
 class Settings(BaseModel):
