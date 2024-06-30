@@ -5,7 +5,6 @@ from app.schemas.error import ErrorResponse
 from fastapi import HTTPException
 from loguru import logger
 
-
 @contextmanager
 def handle_errors():
     try:
@@ -14,6 +13,12 @@ def handle_errors():
         logger.error(f"MongoDB error occurred: {e}")
         response = ErrorResponse(
             status_code=500, status="MongoDBError", message=str(e)
+        )
+    except HTTPException as e:
+        # Capture specific FastAPI HTTPExceptions
+        logger.error(f"HTTPException: {e.detail}")
+        response = ErrorResponse(
+            status_code=e.status_code, status="HTTPException", message=e.detail
         )
     except Exception as e:
         logger.error(f"Internal server error: {e}")

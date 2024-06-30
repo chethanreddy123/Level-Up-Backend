@@ -1,5 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, constr
+from typing import Optional
 from enum import Enum
 
 
@@ -7,25 +8,15 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     GENERAL = "GENERAL"
 
-class UserBaseSchema(BaseModel):
-    name: str
-    email: EmailStr
-    photo: str
-    role: UserRole | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-    class Config:
-        orm_mode = True
 
 class UserBaseSchema(BaseModel):
     name: str
     email: EmailStr
     photo: str
-    role: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-    registration_id: str | None = None
+    role: Optional[UserRole] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    registration_id: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -44,12 +35,12 @@ class LoginUserSchema(BaseModel):
 
 class UserResponseSchema(UserBaseSchema):
     id: str
-    pass
 
 
 class UserResponse(BaseModel):
     status: str
     user: UserResponseSchema
+
 
 class UserRegistration(BaseModel):
     name: str
@@ -58,8 +49,8 @@ class UserRegistration(BaseModel):
     phone_no: str
     previous_gym: str
     slot_preference: str
-    created_at: datetime = None
-    updated_at: datetime = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         orm_mode = True
@@ -69,4 +60,3 @@ class UserRegistration(BaseModel):
 
     def set_updated_timestamp(self):
         self.updated_at = datetime.utcnow()
-

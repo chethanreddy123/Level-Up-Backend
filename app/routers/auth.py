@@ -33,7 +33,7 @@ async def create_user(payload: user.CreateUserSchema):
         #  Hash the password
         payload.password = utils.hash_password(payload.password)
         del payload.password_confirm
-        payload.role = 'user'
+        payload.role = payload.role or 'GENERAL'
         payload.verified = True
         payload.email = payload.email.lower()
         payload.created_at = datetime.utcnow()
