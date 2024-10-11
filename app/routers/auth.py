@@ -44,6 +44,7 @@ async def create_user(payload: user.CreateUserSchema):
         return {"status": "success", "user": new_user}
 
 
+
 @router.post('/login')
 def login(payload: user.LoginUserSchema, response: Response, Authorize: AuthJWT = Depends()):
     with handle_errors():

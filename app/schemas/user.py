@@ -6,8 +6,9 @@ from enum import Enum
 
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
-    GENERAL = "GENERAL"
-
+    CUSTOMER = "CUSTOMER"
+    TRAINER = "TRAINER"
+    DIETITIAN = "DIETITIAN"
 
 class UserBaseSchema(BaseModel):
     name: str
