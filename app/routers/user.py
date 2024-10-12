@@ -32,7 +32,7 @@ async def new_registration(payload: user.UserRegistration , user_id: str = Depen
 
         await send_email(
             sender_email="aioverflow.ml@gmail.com",
-            sender_password="iyfngcdhgfcbkufv", # Need to get it from config
+            sender_password="tvnt qtww egyq ktes", # Need to get it from config
             to_email=new_user['email'],
             cc_emails=None,
             subject="Welcome to Our Gym App!",

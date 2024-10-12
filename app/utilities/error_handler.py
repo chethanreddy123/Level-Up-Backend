@@ -4,6 +4,7 @@ from pymongo import errors as pymongo_errors
 from app.schemas.error import ErrorResponse
 from fastapi import HTTPException
 from loguru import logger
+import traceback
 
 @contextmanager
 def handle_errors():
@@ -25,6 +26,7 @@ def handle_errors():
         response = ErrorResponse(
             status_code=500, status="InternalServerError", message=str(e)
         )
+        print(traceback.format_exc())
     else:
         response = None
 

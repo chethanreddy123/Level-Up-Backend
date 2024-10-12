@@ -4,9 +4,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi_jwt_auth import AuthJWT
 from pydantic import BaseModel
 from bson.objectid import ObjectId
+from loguru import logger
 
 from app.serializers.userSerializers import userEntity
-
 from .database import User
 from config import settings
 
@@ -38,29 +38,54 @@ class UserNotFound(Exception):
 
 
 def require_user(Authorize: AuthJWT = Depends()):
+    """
+    Dependency to check if the user is authenticated.
+    Returns the user ID if the user is authenticated and verified.
+    """
     try:
+        # Ensure the user is authenticated
         Authorize.jwt_required()
+        
+        # Retrieve the user ID from the JWT token's subject (sub)
         user_id = Authorize.get_jwt_subject()
+        
+        # Fetch the user document using the user_id
         user = userEntity(User.find_one({'_id': ObjectId(str(user_id))}))
 
+        # Check if the user exists in the database
         if not user:
-            raise UserNotFound('User no longer exist')
+            raise UserNotFound('User no longer exists')
 
+        # Check if the user's email is verified
         if not user["verified"]:
             raise NotVerified('You are not verified')
 
     except Exception as e:
         error = e.__class__.__name__
-        print(error)
+        logger.error(f"Authorization error: {error}")
         if error == 'MissingTokenError':
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail='You are not logged in')
         if error == 'UserNotFound':
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail='User no longer exist')
+                status_code=status.HTTP_401_UNAUTHORIZED, detail='User no longer exists')
         if error == 'NotVerified':
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail='Please verify your account')
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail='Token is invalid or has expired')
+
+    # Return only the user ID instead of the entire user object
     return user_id
+
+def require_admin(user: dict = Depends(require_user)):
+    """
+    Dependency to check if the user is an admin.
+    Requires the user to be authenticated and have the role of 'ADMIN'.
+    """
+    if user.get("role") != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have the required permissions. Admin access is required."
+        )
+    return user
