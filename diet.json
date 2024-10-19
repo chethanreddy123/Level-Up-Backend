@@ -1,0 +1,249 @@
+{
+    "diet_name": "Weight Gain Diet Plan",
+    "bmi": "18.2 kg/m2",
+    "desired_weight": "55 kg",
+    "desired_calories": "1700 kcal/day",
+    "desired_proteins": "50 gms/day",
+    "menu_plan": {
+        "timings": {
+            "6:00AM": {
+                "menu": [
+                    {
+                        "item": "jeera water",
+                        "quantity": "200ml"
+                    },
+                    {
+                        "item": "lemon water",
+                        "quantity": "200ml"
+                    },
+                    {
+                        "item": "ginger water",
+                        "quantity": "200ml"
+                    }
+                ]
+            },
+            "6:30AM": {
+                "menu": [
+                    {
+                        "item": "overnight soaked almonds",
+                        "quantity": "6 almonds"
+                    },
+                    {
+                        "item": "sunflower seeds",
+                        "quantity": "2 tsp"
+                    },
+                    {
+                        "item": "watermelon seeds",
+                        "quantity": "2 tsp"
+                    }
+                ]
+            },
+            "8:30AM": {
+                "menu": [
+                    {
+                        "item": "ragi porridge with fruits",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "oats with milk and fruits",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "dosa topped with onion and carrot",
+                        "quantity": "2"
+                    },
+                    {
+                        "item": "idly with sambar",
+                        "quantity": "3 idlies, 1 cup sambar"
+                    },
+                    {
+                        "item": "pongal",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "upma with vegetables",
+                        "quantity": "1 cup"
+                    }
+                ],
+                "snack": {
+                    "item": "dry fruit laddu",
+                    "quantity": "1"
+                }
+            },
+            "11:00AM": {
+                "menu": [
+                    {
+                        "item": "vegetable salad",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "buttermilk",
+                        "quantity": "200ml"
+                    },
+                    {
+                        "item": "vegetable soup",
+                        "quantity": "150ml"
+                    },
+                    {
+                        "item": "any fruit",
+                        "quantity": "1"
+                    }
+                ],
+                "snack": {
+                    "item": "boiled groundnuts",
+                    "quantity": "1/2 cup"
+                }
+            },
+            "1:00PM": {
+                "menu": [
+                    {
+                        "item": "quinoa rice",
+                        "quantity": "2 cups"
+                    },
+                    {
+                        "item": "brown rice",
+                        "quantity": "2 cups"
+                    },
+                    {
+                        "item": "dhal with green leafy vegetables",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "vegetable curry",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "curd",
+                        "quantity": "1 cup"
+                    }
+                ]
+            },
+            "4:00PM": {
+                "menu": [
+                    {
+                        "item": "rice flakes with vegetables",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "boiled grams",
+                        "quantity": "1 cup"
+                    },
+                    {
+                        "item": "roasted makhana",
+                        "quantity": "1 cup"
+                    }
+                ],
+                "snack": {
+                    "item": "fruit",
+                    "quantity": "1"
+                }
+            },
+            "7:00PM": {
+                "menu": [
+                    {
+                        "item": "dosa topped with onion and carrot",
+                        "quantity": "2"
+                    },
+                    {
+                        "item": "chapati with vegetable curry",
+                        "quantity": "2 chapatis, 1 cup curry"
+                    },
+                    {
+                        "item": "stuffed paratha with curd",
+                        "quantity": "2 parathas, 1 cup curd"
+                    },
+                    {
+                        "item": "idly with sambar",
+                        "quantity": "3 idlies, 1 cup sambar"
+                    }
+                ]
+            },
+            "9:00PM": {
+                "menu": [
+                    {
+                        "item": "any fruit",
+                        "quantity": "1"
+                    },
+                    {
+                        "item": "buttermilk",
+                        "quantity": "200ml"
+                    }
+                ]
+            }
+        }
+    },
+    "guidelines": [
+        "Take small, frequent and timely meals.",
+        "Avoid oily and salted foods like pickles, chips, French fries.",
+        "Avoid sweets, bakery products, carbonated drinks, and fruit juices.",
+        "Include fiber-rich foods like vegetables, green leafy vegetables, and pulses.",
+        "Include more protein foods like soya, tofu, paneer, and chickpeas.",
+        "Limit salt to 5g/day, water to 3-4 liters/day, and oil to 3 teaspoons/day."
+    ],
+    "one_day_detox_plan": {
+        "6:00AM": {
+            "menu": [
+                {
+                    "item": "jeera water",
+                    "quantity": "200ml"
+                }
+            ]
+        },
+        "8:00AM": {
+            "menu": [
+                {
+                    "item": "apple + orange juice",
+                    "quantity": "200ml"
+                },
+                {
+                    "item": "oats porridge",
+                    "quantity": "1 cup"
+                }
+            ]
+        },
+        "11:00AM": {
+            "menu": [
+                {
+                    "item": "orange",
+                    "quantity": "1"
+                }
+            ]
+        },
+        "1:00PM": {
+            "menu": [
+                {
+                    "item": "vegetable oats",
+                    "quantity": "1 cup"
+                },
+                {
+                    "item": "quinoa porridge",
+                    "quantity": "1 cup"
+                }
+            ]
+        },
+        "3:00PM": {
+            "menu": [
+                {
+                    "item": "guava",
+                    "quantity": "1 small"
+                }
+            ]
+        },
+        "7:00PM": {
+            "menu": [
+                {
+                    "item": "ragi porridge",
+                    "quantity": "200ml"
+                }
+            ]
+        },
+        "9:00PM": {
+            "menu": [
+                {
+                    "item": "buttermilk",
+                    "quantity": "200ml"
+                }
+            ]
+        }
+    }
+}

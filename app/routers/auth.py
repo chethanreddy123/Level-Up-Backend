@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from fastapi import APIRouter, Response, status, Depends, HTTPException
+import loguru
 
 from app.utilities.error_handler import handle_errors
+from app.utilities.email_services import send_email
+from app.utilities.utils import get_next_registration_id
 
 from app import oauth2
 from app.database import User
@@ -33,11 +36,29 @@ async def create_user(payload: user.CreateUserSchema):
         #  Hash the password
         payload.password = utils.hash_password(payload.password)
         del payload.password_confirm
-        payload.role = payload.role or 'GENERAL'
+        payload.role = payload.role or 'CUSTOMER'
         payload.verified = True
         payload.email = payload.email.lower()
         payload.created_at = datetime.utcnow()
         payload.updated_at = payload.created_at
+
+        # creating the Registration ID
+        payload.registration_id = get_next_registration_id()
+
+        # For CUSTOMER role, we need to create a new registration id and send an email
+        if payload.role == 'CUSTOMER':
+            try:
+                await send_email(
+                    sender_email="aioverflow.ml@gmail.com",
+                    sender_password="tvnt qtww egyq ktes", # Need to get it from config
+                    to_email=payload.email,
+                    cc_emails=None,
+                    subject="Welcome to Our Gym App!",
+                    message=f"Hi {payload.name},\n\nThank you for registering with our gym app!\n\nDownload the app and start your fitness journey.\n\nBest regards,\nThe Gym Team"
+                )
+            except Exception as e:
+                loguru.logger.error(f"Error sending email or reg id creation: {e}")
+
         result = User.insert_one(payload.dict())
         new_user = userResponseEntity(
             User.find_one({'_id': result.inserted_id}))

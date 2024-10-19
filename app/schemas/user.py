@@ -10,11 +10,13 @@ class UserRole(str, Enum):
     TRAINER = "TRAINER"
     DIETITIAN = "DIETITIAN"
 
+
 class UserBaseSchema(BaseModel):
     name: str
     email: EmailStr
-    photo: str
+    photo: Optional[str] = None
     role: Optional[UserRole] = None
+    phone_no: str = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     registration_id: Optional[str] = None

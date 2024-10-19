@@ -42,4 +42,4 @@ watchfiles==0.18.1
 websockets==10.4
 gunicorn==20.1.0
 gradio
-loguru
+loguru==0.6.0

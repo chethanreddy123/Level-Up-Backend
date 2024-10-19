@@ -19,12 +19,11 @@ async def submit_screening_form(
     The form responses will be saved and linked to the authenticated user within the user document.
     """
     with handle_errors():
-        # Log the user ID for debugging
-        logger.info(f"User ID from dependency: {user_id}")
         
         # Convert `user_id` to ObjectId for MongoDB operations
         try:
-            user_id = ObjectId(user_id)
+            # Taking the user_id from the payload and converting it to ObjectId as it's customer id
+            user_id = ObjectId(payload.dict().get("user_id"))
         except Exception as e:
             logger.error(f"Error converting user ID to ObjectId: {e}")
             raise HTTPException(
@@ -66,7 +65,7 @@ async def submit_screening_form(
         return {"message": "Screening form submitted successfully!"}
 
 @router.get('/screening/details', response_model=ScreeningFormSchema)
-async def get_screening_details(user_id: str = Depends(oauth2.require_user)):
+async def get_screening_details(user_id: str , authorize : str = Depends(oauth2.require_user)):
     """
     Retrieve the screening form details of the authenticated user.
     """
@@ -102,8 +101,6 @@ async def get_screening_details(user_id: str = Depends(oauth2.require_user)):
         # Return the screening data
         return existing_user["screening"]
 
-
-
 @router.put('/screening/edit', status_code=status.HTTP_200_OK, response_model=ScreeningFormSchema)
 async def edit_screening_form(
     payload: ScreeningFormSchema,
@@ -114,12 +111,9 @@ async def edit_screening_form(
     The changes will be updated within the user document.
     """
     with handle_errors():
-        # Log the user ID for debugging
-        logger.info(f"Editing screening form for user ID: {user_id}")
-        
-        # Convert `user_id` to ObjectId for MongoDB operations
+      
         try:
-            user_id = ObjectId(user_id)
+            user_id = ObjectId(payload.dict().get("user_id")) # taking the user_id from the payload and converting it to ObjectId as it's customer id
         except Exception as e:
             logger.error(f"Error converting user ID to ObjectId: {e}")
             raise HTTPException(

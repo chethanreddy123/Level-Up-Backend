@@ -28,6 +28,7 @@ class TrainingIntensity(int, Enum):
     TEN = 10
 
 class ScreeningFormSchema(BaseModel):
+    user_id : str
     # Text fields
     occupation: Optional[str] = None
     nutrition_goals: Optional[str] = None
