@@ -182,6 +182,9 @@ async def edit_workout_progress(
 
         return {"message": "Workout progress updated successfully!"}
 
+
+# Exercise CRUD operations:
+
 @router.post('/exercise', status_code=status.HTTP_201_CREATED, response_model=ExerciseResponseSchema)
 async def create_exercise(
     payload: ExerciseCreateSchema,
@@ -328,3 +331,7 @@ async def delete_exercise(
             )
 
         return {"message": "Exercise deleted successfully!"}
+
+
+# Tech Spefic of it
+# 

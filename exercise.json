@@ -12,7 +12,8 @@
                 "sets": 3,
                 "reps": 12,
                 "exercise_type": "Strength",
-                "category": "Advanced"
+                "category": "Advanced",
+                "image" : random from list
             },
             {
                 "exercise_id": "exercise_id_2",
