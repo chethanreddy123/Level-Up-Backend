@@ -1,6 +1,7 @@
 from passlib.context import CryptContext
-import datetime
+from datetime import datetime
 from app.database import User
+import pytz
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -43,3 +44,16 @@ def get_next_registration_id():
     next_id = f"{year_suffix}LEVELUP{next_seq_num:04d}"
 
     return next_id
+
+# Helper function to get the Indian Standard Time
+def get_current_ist_time() -> str:
+    """
+    Get the current date and time in Indian Standard Time (IST).
+    Returns the formatted date and time as a string.
+    """
+    utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+    local_time = utc_now.astimezone(ist_timezone)
+    formatted_date = local_time.strftime("%d-%m-%Y")  # Day-Month-Year format
+    formatted_time = local_time.strftime("%I:%M %p")  # 12-hour clock format with AM/PM
+    return formatted_date, formatted_time

@@ -1,4 +1,6 @@
 from pymongo import MongoClient, ASCENDING
+import firebase_admin
+from firebase_admin import credentials, storage
 from config import settings
 
 # Connect to MongoDB
@@ -43,3 +45,25 @@ Exercises = db.exercises
 DietPlans = db.diet_plans
 
 FoodItems = db.food_items
+
+# Workout tracking
+WorkoutandDietTracking = db.workout_and_diet_tracking
+
+
+# Firebase Initialization
+def initialize_firebase():
+    firebase_config_path = settings.FIREBASE_CONFIG_PATH  # Get path to the service account JSON file
+    try:
+        # Initialize Firebase Admin SDK using the service account credentials
+        cred = credentials.Certificate(firebase_config_path)
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': 'medigenai-94061.appspot.com'  # Replace with your Firebase Storage bucket name
+        })
+        print("Connected to Firebase Storage successfully.")
+    except Exception as e:
+        print(f"Failed to connect to Firebase: {e}")
+
+# Initialize Firebase only once
+initialize_firebase()
+
+

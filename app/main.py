@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import app.database
 
 from config import settings
 from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item

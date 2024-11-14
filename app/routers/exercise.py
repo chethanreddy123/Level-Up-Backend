@@ -3,13 +3,14 @@ from bson.objectid import ObjectId
 from datetime import datetime
 from typing import List, Optional
 from loguru import logger
-
-from app.database import User, Exercises
+from app.schemas.exercise import UploadWorkoutRequest, WorkoutEntry
+from app.utilities.utils import get_current_ist_time
+from app.database import User, WorkoutandDietTracking, Exercises
 from app.schemas.exercise import DayProgressSchema, ExerciseCreateSchema, ExerciseUpdateSchema, ExerciseResponseSchema
 from app.schemas.workout_plan import WorkoutPlanSchema
 from app.utilities.error_handler import handle_errors
 from .. import oauth2
-
+from pymongo.errors import PyMongoError
 # Initialize the router
 router = APIRouter()
 
@@ -333,5 +334,92 @@ async def delete_exercise(
         return {"message": "Exercise deleted successfully!"}
 
 
-# Tech Spefic of it
-# 
+# Routes for the user in the gym app
+
+# Route to upload the workout info for that day
+@router.post('/upload_workout_task')
+async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depends(oauth2.require_user)):
+    """
+    Uploads a workout task and diet log for a user. Both workout and diet logs are stored under the same date.
+    """
+    with handle_errors():
+        user_id = str(user_id)
+
+        # Get the formatted date and time in IST
+        formatted_date, formatted_time = get_current_ist_time()
+
+        # Extract workout details from the payload
+        workout_name = payload.workout.workout_name
+
+        # Get today's workout and diet data for the user from the database
+        existing_record = WorkoutandDietTracking.find_one({"_id": user_id, formatted_date: {"$exists": True}})
+
+        # If no record exists for this date, create a new record for the user
+        if not existing_record:
+            new_record = {
+                "_id": user_id,
+                formatted_date: {
+                    "workout_logs": [
+                        {
+                            "workout_name": payload.workout.workout_name,
+                            "sets_assigned": payload.workout.sets_assigned,
+                            "sets_done": payload.workout.sets_done,
+                            "reps_assigned": payload.workout.reps_assigned,
+                            "reps_done": payload.workout.reps_done,
+                            "load_assigned": payload.workout.load_assigned,
+                            "load_done": payload.workout.load_done,
+                            "performance": payload.workout.performance,
+                            "updated_at": formatted_time  # Track the time of the workout log
+                        }
+                    ],
+                    "diet_logs": []  # Initially empty diet logs
+                }
+            }
+
+            # Insert the new workout and diet data into MongoDB
+            WorkoutandDietTracking.insert_one(new_record)
+
+            return {
+                "status": "success",
+                "message": f"Workout data for {workout_name} uploaded successfully for {formatted_date}!"
+            }
+
+        else:
+            # If the record for the date already exists, check if the workout is already recorded
+            existing_workouts = existing_record.get(formatted_date, {}).get("workout_logs", [])
+            existing_diet_logs = existing_record.get(formatted_date, {}).get("diet_logs", [])
+
+            # Check if the workout already exists
+            if any(workout["workout_name"] == workout_name for workout in existing_workouts):
+                return {
+                    "status_code": 409,
+                    "message": f"The data for {workout_name} has already been uploaded today."
+                }
+
+            # Add the workout log to the existing record
+            new_workout_log = {
+                "workout_name": workout_name,
+                "sets_assigned": payload.workout.sets_assigned,
+                "sets_done": payload.workout.sets_done,
+                "reps_assigned": payload.workout.reps_assigned,
+                "reps_done": payload.workout.reps_done,
+                "load_assigned": payload.workout.load_assigned,
+                "load_done": payload.workout.load_done,
+                "performance": payload.workout.performance,
+                "updated_at": formatted_time
+            }
+
+            # Update the workout logs
+            existing_record[formatted_date]["workout_logs"].append(new_workout_log)
+
+            # Update the existing record in MongoDB
+            WorkoutandDietTracking.update_one(
+                {"_id": user_id},
+                {"$set": existing_record},
+                upsert=True
+            )
+
+            return {
+                "status": "success",
+                "message": f"Workout data for {workout_name} uploaded successfully for {formatted_date}!"
+            }
