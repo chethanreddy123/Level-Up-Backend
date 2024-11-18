@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import app.database
+from  app.database import initialize_database
 
 from config import settings
 from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item
@@ -32,3 +32,7 @@ app.include_router(food_item.router, tags=['Food Items'], prefix='/api')
 @app.get("/api/healthchecker")
 def root():
     return {"message": "Welcome to Level Up Fitness APIs!"}
+
+@app.on_event("startup")
+async def startup_event():
+    await initialize_database()

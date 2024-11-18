@@ -63,7 +63,7 @@ class UserNotFound(Exception):
     pass
 
 
-def require_user(Authorize: AuthJWT = Depends()):
+async def require_user(Authorize: AuthJWT = Depends()):
     """
     Dependency to check if the user is authenticated.
     Returns the user ID if the user is authenticated and verified.
@@ -75,8 +75,9 @@ def require_user(Authorize: AuthJWT = Depends()):
         # Retrieve the user ID from the JWT token's subject (sub)
         user_id = Authorize.get_jwt_subject()
         
-        # Fetch the user document using the user_id
-        user = userEntity(User.find_one({'_id': ObjectId(str(user_id))}))
+        # Fetch the user document using the user_id asynchronously
+        db_user = await User.find_one({'_id': ObjectId(str(user_id))})
+        user = userEntity(db_user) if db_user else None
 
         # Check if the user exists in the database
         if not user:

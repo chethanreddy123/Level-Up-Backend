@@ -16,7 +16,7 @@ class ExerciseType(Enum):
     strength = 'strength'
 
 # Enum for Category Level
-class CategoryLevel(Enum):
+class ExerciseLevel(Enum):
     beginner = 'beginner'
     intermediate = 'intermediate'
     advanced = 'advanced'
@@ -41,13 +41,29 @@ class WorkoutPlanSchema(BaseModel):
 class WorkoutPlanUpdateSchema(BaseModel):
     progress: Optional[List[DayProgressSchema]] = None  # Allows partial updates
 
+# Schema for exercise creation
 class ExerciseCreateSchema(BaseModel):
     name: str
     sets: int
     reps: int
     calories: int
     type: ExerciseType  # Enum restricts this to only 'bodyweight', 'cardio', 'strength'
-    category: CategoryLevel  # Enum restricts this to 'beginner', 'intermediate', 'advanced'
+    level: ExerciseLevel  # Enum restricts this to 'beginner', 'intermediate', 'advanced'
+
+    class Config:
+        # Automatically convert Enums to their string values when serialized to JSON
+        use_enum_values = True
+
+# Schema to get exercises with pagination
+class GetExercises(BaseModel):
+    type: Optional[ExerciseType] = None
+    level: Optional[ExerciseLevel] = None
+
+    class Config:
+        # Automatically convert Enums to their string values when serialized to JSON
+        use_enum_values = True
+
+
 
 class ExerciseUpdateSchema(BaseModel):
     name: Optional[str] = None
@@ -55,7 +71,7 @@ class ExerciseUpdateSchema(BaseModel):
     reps: Optional[int] = None
     calories: Optional[int] = None
     type: Optional[str] = None
-    category: Optional[str] = None
+    level: Optional[str] = None
 
 class ExerciseResponseSchema(ExerciseCreateSchema):
     id: str  # This will be the MongoDB ObjectId
@@ -83,7 +99,7 @@ class WorkoutEntry(BaseModel):
     @property
     def load_done(self) -> float:
         """Calculate the load completed by the user"""
-        return self.sets_assigned * self.reps_assigned * self.weight
+        return self.sets_done * self.reps_done * self.weight
 
     @property
     def performance(self) -> float:
@@ -91,6 +107,4 @@ class WorkoutEntry(BaseModel):
         return (self.load_done / self.load_assigned) * 100
 
 class UploadWorkoutRequest(BaseModel):
-    # user_id: str  # Unique user identifier (e.g., user_email@gmail.com)
-    # date: str  # Date of the workout (e.g., "2024-02-19")
     workout: WorkoutEntry  # A single workout entry (one exercise)

@@ -45,3 +45,4 @@ gradio
 loguru==0.6.0
 pytz
 firebase-admin
+motor

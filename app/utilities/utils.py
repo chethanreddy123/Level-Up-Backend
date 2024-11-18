@@ -5,20 +5,20 @@ import pytz
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
+# Synchronous functions for hashing and verifying passwords (no change needed)
 def hash_password(password: str):
     return pwd_context.hash(password)
-
 
 def verify_password(password: str, hashed_password: str):
     return pwd_context.verify(password, hashed_password)
 
-def get_next_registration_id():
-    current_year = datetime.datetime.now().year
+# Make the function async because User.find_one is asynchronous
+async def get_next_registration_id():
+    current_year = datetime.now().year
     year_suffix = str(current_year)[-2:]
 
-    # Retrieve the most recent registration ID
-    recent_user = User.find_one(
+    # Retrieve the most recent registration ID asynchronously
+    recent_user = await User.find_one(
         {"registration_id": {"$exists": True}},
         sort=[("_id", -1)],
         projection={"registration_id": True}
@@ -42,15 +42,10 @@ def get_next_registration_id():
 
     # Format the next ID
     next_id = f"{year_suffix}LEVELUP{next_seq_num:04d}"
-
     return next_id
 
-# Helper function to get the Indian Standard Time
+# Helper function to get the Indian Standard Time (no change needed)
 def get_current_ist_time() -> str:
-    """
-    Get the current date and time in Indian Standard Time (IST).
-    Returns the formatted date and time as a string.
-    """
     utc_now = datetime.utcnow().replace(tzinfo=pytz.utc)
     ist_timezone = pytz.timezone('Asia/Kolkata')
     local_time = utc_now.astimezone(ist_timezone)

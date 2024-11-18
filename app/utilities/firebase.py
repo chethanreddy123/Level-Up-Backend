@@ -27,7 +27,7 @@ def upload_image_to_firebase(file, user_id, food_name) -> str:
         raise ValueError("Unsupported file type")
 
     # Get the current date in the format 'MM-DD-YY'
-    current_date = datetime.now().strftime("%m-%d-%y")
+    current_date = datetime.now().strftime("%d-%m-%y")
     
     # Define the file path with the folder structure: 'level_up_images/{user_id}/{date}/{food_name}{extension}'
     file_path = f"level_up_images/{user_id}/{current_date}/{food_name}{extension}"
@@ -35,20 +35,6 @@ def upload_image_to_firebase(file, user_id, food_name) -> str:
     # Initialize Firebase Storage bucket
     bucket = storage.bucket()
     blob = bucket.blob(file_path)
-
-    # # Check if the image for the given food_name already exists for the same user and date
-    # existing_files = list(bucket.list_blobs(prefix=f"level_up_images/{user_id}/{current_date}/{food_name}"))
-    
-    # if existing_files:
-    #     # If a file already exists, extract the timestamp of the last upload
-    #     last_upload_blob = existing_files[0]
-    #     last_upload_time = last_upload_blob.time_created.strftime("%Y-%m-%d %H:%M:%S")
-        
-    #     # Raise HTTPException instead of returning a string to signal the duplication
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail=f"The image for {food_name.title()} has already been uploaded at {last_upload_time}."
-    #     )
 
     # Upload the new file to Firebase Storage
     blob.upload_from_file(file.file, content_type=content_type)
