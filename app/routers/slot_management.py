@@ -27,7 +27,7 @@ async def add_user_to_slots(
 
     try:
         # Fetch user details from Users collection
-        user = await User.find_one({"_id": ObjectId(user_id)})
+        user =  User.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
@@ -56,7 +56,7 @@ async def add_user_to_slots(
             }
             array_filters = [{"slot.start_time": payload.slot_time.start_time, "slot.end_time": payload.slot_time.end_time}]
             
-            result = await UserSlots.update_one(query, update, array_filters=array_filters)
+            result =  UserSlots.update_one(query, update, array_filters=array_filters)
             
             if result.modified_count == 0:
                 logger.warning(f"No slots were updated for day {day}. Possible slot not found.")
@@ -69,7 +69,7 @@ async def add_user_to_slots(
                 "end_time": payload.slot_time.end_time
             }
         }
-        await User.update_one(
+        User.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"slot_details": slot_details}}
         )
@@ -90,7 +90,7 @@ async def get_user_slot_details(
     """
     try:
         # Fetch user details from Users collection
-        user = await User.find_one({"_id": ObjectId(user_id)})
+        user =  User.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
@@ -116,7 +116,7 @@ async def update_user_slot_details(
     """
     try:
         # Fetch user details from Users collection
-        user = await User.find_one({"_id": ObjectId(user_id)})
+        user =  User.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
@@ -133,7 +133,7 @@ async def update_user_slot_details(
                 "days.$[].slots.$[].allocated_users": {"user_id": user_id}
             }
         }
-        await UserSlots.update_many(remove_query, remove_update)
+        UserSlots.update_many(remove_query, remove_update)
 
         # Update the slot details in the user document
         slot_details = {
@@ -143,7 +143,7 @@ async def update_user_slot_details(
                 "end_time": payload.slot_time.end_time
             }
         }
-        result = await User.update_one(
+        result =  User.update_one(
             {"_id": ObjectId(user_id)},
             {"$set": {"slot_details": slot_details}}
         )
@@ -172,7 +172,7 @@ async def update_user_slot_details(
             }
             array_filters = [{"slot.start_time": payload.slot_time.start_time, "slot.end_time": payload.slot_time.end_time}]
 
-            result = await UserSlots.update_one(query, update, array_filters=array_filters)
+            result =  UserSlots.update_one(query, update, array_filters=array_filters)
 
             if result.modified_count == 0:
                 logger.warning(f"No slots were updated for day {day}. Possible slot not found or user not allocated.")
@@ -193,7 +193,7 @@ async def delete_user_slot_details(
     """
     try:
         # Fetch user details from Users collection
-        user = await User.find_one({"_id": ObjectId(user_id)})
+        user =  User.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
@@ -206,10 +206,10 @@ async def delete_user_slot_details(
                 "days.$[].slots.$[].allocated_users": {"user_id": user_id}
             }
         }
-        await UserSlots.update_many(remove_query, remove_update)
+        UserSlots.update_many(remove_query, remove_update)
 
         # Remove slot details from User document
-        result = await User.update_one(
+        result =  User.update_one(
             {"_id": ObjectId(user_id)},
             {"$unset": {"slot_details": ""}}
         )

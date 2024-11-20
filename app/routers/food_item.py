@@ -28,7 +28,7 @@ async def create_food_item(
         logger.info(f"Creating a new food item: {payload.food_name} by user ID: {user_id}")
 
         # Check if the food item already exists (case-insensitive)
-        existing_food_item = await FoodItems.find_one(
+        existing_food_item =  FoodItems.find_one(
             {"food_name": {"$regex": f"^{payload.food_name}$", "$options": "i"}}
         )
         
@@ -42,10 +42,10 @@ async def create_food_item(
         food_item_data = payload.dict()
 
         # Insert the new food item into the FoodItems collection
-        result = await FoodItems.insert_one(food_item_data)
+        result =  FoodItems.insert_one(food_item_data)
         
         # Fetch the newly inserted food item, including the inserted _id
-        new_food_item = await FoodItems.find_one({'_id': result.inserted_id})
+        new_food_item =  FoodItems.find_one({'_id': result.inserted_id})
         
         # Convert _id from ObjectId to string
         if new_food_item:
@@ -73,7 +73,7 @@ async def get_food_item_by_id(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid food item ID format.")
         
         # Fetch the food item from the database
-        food_item = await FoodItems.find_one({"_id": food_item_obj_id})
+        food_item =  FoodItems.find_one({"_id": food_item_obj_id})
         
         if not food_item:
             raise HTTPException(
@@ -101,14 +101,14 @@ async def get_food_items(
         skip = (page - 1) * items_per_page
 
         # Fetch the total number of food items
-        total_items = await FoodItems.count_documents({})
+        total_items =  FoodItems.count_documents({})
 
         # Calculate total pages based on the total items and items per page
         total_pages = ceil(total_items / items_per_page)
 
-        # Fetch the paginated food items
-        food_items_cursor = FoodItems.find().skip(skip).limit(items_per_page)
-        food_items = await food_items_cursor.to_list(length=items_per_page)
+        # Fetch the paginated food items (synchronously)
+        food_items = list(FoodItems.find().skip(skip).limit(items_per_page))
+
 
         # Convert _id to string for each food item in the response
         for item in food_items:
@@ -144,7 +144,7 @@ async def update_food_item(
         update_data = {k: v for k, v in payload.dict().items() if v is not None}
 
         # Update food item in the collection
-        update_result = await FoodItems.update_one(
+        update_result =  FoodItems.update_one(
             {"_id": food_item_obj_id},
             {"$set": update_data}
         )
@@ -181,7 +181,7 @@ async def delete_food_item(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid food item ID format.")
 
         # Fetch the food item before deletion to return its ID
-        food_item = await FoodItems.find_one({"_id": food_item_obj_id})
+        food_item =  FoodItems.find_one({"_id": food_item_obj_id})
         if not food_item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -189,7 +189,7 @@ async def delete_food_item(
             )
 
         # Delete the food item from the collection
-        delete_result = await FoodItems.delete_one({"_id": food_item_obj_id})
+        delete_result =  FoodItems.delete_one({"_id": food_item_obj_id})
         if delete_result.deleted_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

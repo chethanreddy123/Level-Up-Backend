@@ -8,7 +8,7 @@ from app.utilities.email_services import send_email
 from app.utilities.utils import get_next_registration_id
 
 from app import oauth2
-from app.database import create_indexes, User
+from app.database import  User
 from app.serializers.userSerializers import userEntity, userResponseEntity
 from app.utilities import utils
 from app.schemas import user
@@ -25,7 +25,7 @@ REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 async def create_user(payload: user.CreateUserSchema):
     with handle_errors():
         # Check if user already exists
-        existing_user = await User.find_one({'email': payload.email.lower()})
+        existing_user =  User.find_one({'email': payload.email.lower()})
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -51,10 +51,10 @@ async def create_user(payload: user.CreateUserSchema):
         payload.updated_at = payload.created_at
 
         # Generate Registration ID
-        payload.registration_id = await get_next_registration_id()
+        payload.registration_id =  get_next_registration_id()
 
         # Insert the user into the database
-        result = await User.insert_one(payload.dict())
+        result =  User.insert_one(payload.dict())
         if not result.inserted_id:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -62,7 +62,7 @@ async def create_user(payload: user.CreateUserSchema):
             )
 
         # Fetch the newly created user
-        new_user_data = await User.find_one({'_id': result.inserted_id})
+        new_user_data =  User.find_one({'_id': result.inserted_id})
         if not new_user_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -97,7 +97,7 @@ async def create_user(payload: user.CreateUserSchema):
 async def login(payload: user.LoginUserSchema, response: Response, Authorize: AuthJWT = Depends()):
     with handle_errors():
         # Check if the user exists
-        db_user = await User.find_one({'email': payload.email.lower()})
+        db_user =  User.find_one({'email': payload.email.lower()})
         if not db_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail='Incorrect Email or Password')

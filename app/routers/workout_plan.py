@@ -41,7 +41,7 @@ async def create_workout_plan(
         workout_plan_data["updated_at"] = datetime_str
 
         # Check if a workout plan with the same name already exists
-        existing_plan = await WorkoutPlans.find_one({"workout_plan_name": workout_plan_data["workout_plan_name"]})
+        existing_plan =  WorkoutPlans.find_one({"workout_plan_name": workout_plan_data["workout_plan_name"]})
 
         if existing_plan:
             # If a plan with the same name exists, raise a conflict exception
@@ -52,7 +52,7 @@ async def create_workout_plan(
 
         # Insert the new workout plan into the WorkoutPlans collection
         try:
-            result = await WorkoutPlans.insert_one(workout_plan_data)
+            result =  WorkoutPlans.insert_one(workout_plan_data)
         except Exception as e:
             logger.error(f"Error creating workout plan: {str(e)}")
             raise HTTPException(
@@ -80,7 +80,7 @@ async def get_workout_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workout plan ID format.")
 
         # Look up the workout plan in the WorkoutPlans collection
-        workout_plan = await WorkoutPlans.find_one({"_id": workout_plan_id})
+        workout_plan =  WorkoutPlans.find_one({"_id": workout_plan_id})
 
         if not workout_plan:
             raise HTTPException(
@@ -102,8 +102,9 @@ async def get_workout_plan(
                 detail=f"Invalid exercise ID format: {str(e)}"
             )
 
-        # Fetch all exercises by their ObjectIds
-        exercises = await Exercises.find({"_id": {"$in": exercise_object_ids}}).to_list(length=None)
+        # Fetch all exercises by their ObjectIds (synchronously)
+        exercises = list(Exercises.find({"_id": {"$in": exercise_object_ids}}))
+
 
         # Create a dictionary mapping exercise ObjectId to exercise data
         exercise_dict = {str(exercise["_id"]): exercise for exercise in exercises}
@@ -142,7 +143,7 @@ async def update_workout_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workout plan ID format.")
 
         # Check if the workout plan exists
-        existing_plan = await WorkoutPlans.find_one({"_id": workout_plan_id})
+        existing_plan =  WorkoutPlans.find_one({"_id": workout_plan_id})
 
         if not existing_plan:
             raise HTTPException(
@@ -172,7 +173,7 @@ async def update_workout_plan(
             return {"message": "Workout plan is up to date. No changes applied."}
 
         # Update the workout plan in the database
-        update_result = await WorkoutPlans.update_one(
+        update_result =  WorkoutPlans.update_one(
             {"_id": workout_plan_id},
             {"$set": update_data}
         )
@@ -200,7 +201,7 @@ async def delete_workout_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workout plan ID format.")
 
         # Check if the workout plan exists
-        existing_plan = await WorkoutPlans.find_one({"_id": workout_plan_id})
+        existing_plan =  WorkoutPlans.find_one({"_id": workout_plan_id})
 
         if not existing_plan:
             raise HTTPException(
@@ -209,7 +210,7 @@ async def delete_workout_plan(
             )
 
         # Remove the workout plan from the WorkoutPlans collection
-        delete_result = await WorkoutPlans.delete_one({"_id": workout_plan_id})
+        delete_result =  WorkoutPlans.delete_one({"_id": workout_plan_id})
 
         if delete_result.deleted_count == 0:
             raise HTTPException(
@@ -227,7 +228,7 @@ async def get_all_exercises(user_id: str = Depends(oauth2.require_user)):
     """
     try:
         # Fetch all exercises from the database (assumes MongoDB)
-        exercises = await Exercises.find().to_list(length=None)
+        exercises =  list(Exercises.find())
 
         if not exercises:
             raise HTTPException(

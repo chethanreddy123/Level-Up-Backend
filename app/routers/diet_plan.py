@@ -35,7 +35,7 @@ async def create_diet_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format.")
 
         # Check if the user exists in the database
-        existing_user = await User.find_one({"_id": user_id})
+        existing_user =  User.find_one({"_id": user_id})
         if not existing_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -43,7 +43,7 @@ async def create_diet_plan(
             )
 
         # Check if the diet plan already exists for the user
-        existing_diet_plan = await DietPlans.find_one({"_id": user_id})
+        existing_diet_plan =  DietPlans.find_one({"_id": user_id})
         if existing_diet_plan:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,10 +68,10 @@ async def create_diet_plan(
         diet_plan_data["_id"] = user_id  # Use user_id as the diet plan _id
 
         # Insert the diet plan into DietPlans collection
-        result = await DietPlans.insert_one(diet_plan_data)
+        result =  DietPlans.insert_one(diet_plan_data)
         
         # Fetch the newly inserted diet plan from the collection using the user_id as _id
-        new_diet_plan = await DietPlans.find_one({"_id": user_id})
+        new_diet_plan =  DietPlans.find_one({"_id": user_id})
 
         # Convert _id from ObjectId to string and return the response
         if new_diet_plan:
@@ -99,7 +99,7 @@ async def get_diet_plan_for_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format.")
 
     # Find the diet plan for the specific user
-    diet_plan = await DietPlans.find_one({"_id": user_id})
+    diet_plan =  DietPlans.find_one({"_id": user_id})
     
     if not diet_plan:
         raise HTTPException(
@@ -108,10 +108,10 @@ async def get_diet_plan_for_user(
         )
 
     # Helper function to populate food items
-    async def populate_food_items(menu: List[str]) -> List[dict]:
+    def populate_food_items(menu: List[str]) -> List[dict]:
         food_items = []
         for item_id in menu:
-            food_item = await FoodItems.find_one({"_id": ObjectId(item_id)})
+            food_item =  FoodItems.find_one({"_id": ObjectId(item_id)})
             if food_item:
                 food_items.append({
                     "food_name": food_item["food_name"],
@@ -125,11 +125,11 @@ async def get_diet_plan_for_user(
     # Replace menu item IDs with FoodItem details
     if "menu_plan" in diet_plan:
         for time, details in diet_plan["menu_plan"]["timings"].items():
-            details["menu"] = await populate_food_items(details["menu"])
+            details["menu"] =  populate_food_items(details["menu"])
 
     if "one_day_detox_plan" in diet_plan:
         for time, details in diet_plan["one_day_detox_plan"].items():
-            details["menu"] = await populate_food_items(details["menu"])
+            details["menu"] =  populate_food_items(details["menu"])
 
     # Convert _id to string for the diet plan and format timestamps
     diet_plan["_id"] = str(diet_plan["_id"])
@@ -181,7 +181,7 @@ async def update_diet_plan(
 
         update_data["updated_at"] = datetime_str
         # Update the diet plan in the database
-        update_result = await DietPlans.find_one_and_update(
+        update_result =  DietPlans.find_one_and_update(
             {"_id": diet_plan_obj_id, "user_id": user_id},
             {"$set": update_data},
             return_document=True
@@ -217,7 +217,7 @@ async def delete_diet_plan(
             )
 
         # Attempt to delete the diet plan
-        delete_result = await DietPlans.delete_one({"_id": diet_plan_obj_id, "user_id": user_id})
+        delete_result =  DietPlans.delete_one({"_id": diet_plan_obj_id, "user_id": user_id})
         if delete_result.deleted_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -329,7 +329,7 @@ async def upload_diet_logs(
         formatted_date, formatted_time = get_current_ist_time()
 
         # Check if the food_name already exists for the given date and user in MongoDB
-        existing_record = await WorkoutandDietTracking.find_one(
+        existing_record =  WorkoutandDietTracking.find_one(
             {"_id": user_id, f"{formatted_date}.diet_logs": {"$elemMatch": {"food_name": food_name}}}
         )
 
@@ -357,7 +357,7 @@ async def upload_diet_logs(
         }
 
         # Check if a record for this date already exists
-        existing_record = await WorkoutandDietTracking.find_one({"_id": user_id, formatted_date: {"$exists": True}})
+        existing_record =  WorkoutandDietTracking.find_one({"_id": user_id, formatted_date: {"$exists": True}})
 
         if not existing_record:
             # If no record exists for this date, create a new record for the user
@@ -371,7 +371,7 @@ async def upload_diet_logs(
 
             try:
                 # Insert the new diet data into MongoDB
-                await WorkoutandDietTracking.insert_one(new_record)
+                 WorkoutandDietTracking.insert_one(new_record)
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
@@ -393,7 +393,7 @@ async def upload_diet_logs(
 
             # Update the existing record with the new diet log
             try:
-                await WorkoutandDietTracking.update_one(
+                WorkoutandDietTracking.update_one(
                     {"_id": user_id},
                     {
                         "$set": {  # Use $set to add or update the date field
@@ -460,7 +460,7 @@ async def get_diet_logs(
 #         payload["_id"] = ObjectId()
         
 #         # Check if the slot information already exists in UserSlots by slot name
-#         existing_slots = await UserSlots.find_one({"slot_name": payload["slot_name"]})
+#         existing_slots =  UserSlots.find_one({"slot_name": payload["slot_name"]})
 #         if existing_slots:
 #             raise HTTPException(
 #                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -468,7 +468,7 @@ async def get_diet_logs(
 #             )
 
 #         # Insert the slot information into the UserSlots collection
-#         result = await UserSlots.insert_one(payload)
+#         result =  UserSlots.insert_one(payload)
 
 #         if result.inserted_id:
 #             return {"message": "Slot information successfully dumped."}

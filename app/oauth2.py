@@ -76,7 +76,7 @@ async def require_user(Authorize: AuthJWT = Depends()):
         user_id = Authorize.get_jwt_subject()
         
         # Fetch the user document using the user_id asynchronously
-        db_user = await User.find_one({'_id': ObjectId(str(user_id))})
+        db_user =  User.find_one({'_id': ObjectId(str(user_id))})
         user = userEntity(db_user) if db_user else None
 
         # Check if the user exists in the database

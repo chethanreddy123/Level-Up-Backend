@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import initialize_database, initialize_firebase
+from app.database import initialize_database
 from config import settings
 from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management
 
@@ -37,14 +37,7 @@ def root():
 async def startup_event():
     # Initialize the database asynchronously
     try:
-        await initialize_database()
+        initialize_database()
         print("Database initialized successfully.")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to initialize database: {str(e)}")
-    
-    # Initialize Firebase (synchronously, since it's a blocking operation)
-    try:
-        initialize_firebase()
-        print("Firebase initialized successfully.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to initialize Firebase: {str(e)}")
