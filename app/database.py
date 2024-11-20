@@ -24,6 +24,7 @@ db = client[settings.MONGO_INITDB_DATABASE]
 User = db.users
 Registrations = db.registrations
 Customers = db.customers
+UserSlots = db.user_slots
 Forms = db.forms
 Exercises = db.exercises
 WorkoutPlans = db.workout_plans
@@ -66,7 +67,6 @@ def initialize_firebase():
         logger.error(f"Failed to connect to Firebase: {e}")
 
 # Initialize Firebase immediately
-initialize_firebase()
 
 # Function to initialize the database (exported for external use)
 async def initialize_database():
