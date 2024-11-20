@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import initialize_database, initialize_firebase
+from  app.database import initialize_database
+
 from config import settings
-from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management
+from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item
 
 app = FastAPI()
 
@@ -18,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include your routers
+
 app.include_router(auth.router, tags=['Auth'], prefix='/api/auth')
 app.include_router(user.router, tags=['Users'], prefix='/api/users')
 app.include_router(forms.router, tags=['Forms'], prefix='/api/forms')
@@ -27,7 +28,6 @@ app.include_router(exercise.router, tags=['Exercises'], prefix='/api')
 app.include_router(workout_plan.router, tags=['Workout Plan'], prefix='/api')
 app.include_router(diet_plan.router, tags=['Diet Plan'], prefix='/api')
 app.include_router(food_item.router, tags=['Food Items'], prefix='/api')
-app.include_router(slot_management.router, tags=['Slot Management'], prefix='/api')
 
 @app.get("/api/healthchecker")
 def root():
@@ -35,16 +35,4 @@ def root():
 
 @app.on_event("startup")
 async def startup_event():
-    # Initialize the database asynchronously
-    try:
-        await initialize_database()
-        print("Database initialized successfully.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to initialize database: {str(e)}")
-    
-    # Initialize Firebase (synchronously, since it's a blocking operation)
-    try:
-        initialize_firebase()
-        print("Firebase initialized successfully.")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to initialize Firebase: {str(e)}")
+    await initialize_database()

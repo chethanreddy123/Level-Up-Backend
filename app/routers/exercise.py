@@ -624,51 +624,47 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
                 "message": f"Workout data for {workout_name} uploaded successfully for {formatted_date}!"
             }
 
+# Route to display the workout tracking details of the user to the admin (trainer)
 @router.get('/exercise/workout_logs/{date}')
 async def get_workout_logs(
-    date: str,  # Path parameter for date (format: dd-mm-yyyy)
-    auth_user_id: str = Depends(oauth2.require_user),  # Authenticated user ID
-    user_id: str = Query(..., description="Customer ID whose workout logs will be fetched")  # User ID from query
+    date: str,  # Path parameter for date
+    user_id: str = Depends(oauth2.require_user)  # Assuming authentication gives user_id
 ):
     """
     Fetches the workout logs for a specific user and date from MongoDB.
     """
     with handle_errors():
-        # Log input data for debugging
-        logger.info(f"Fetching workout logs for user {user_id} on date {date}")
+        # Get the user_id from the authenticated user
+        user_id = str(user_id)
 
-        # Validate the date format (ensure it's in dd-mm-yyyy)
-        try:
-            day, month, year = map(int, date.split("-"))
-            formatted_date = f"{day:02d}-{month:02d}-{year:04d}"  # Ensure leading zeros and consistent format
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format. Use 'dd-mm-yyyy'."
-            )
+        # Parse the formatted date (assuming it's in the format "dd-mm-yyyy")
+        formatted_date = date  # You can apply any necessary formatting here if required
 
-        # Fetch the record for the given user and date
+        # Find the record for the given user and date in MongoDB
         existing_record = await WorkoutandDietTracking.find_one(
             {"_id": user_id, formatted_date: {"$exists": True}}
         )
 
+        # Check if the record exists, and if not, raise a 404 error
         if not existing_record:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No workout logs found for user {user_id} on {formatted_date}."
             )
 
-        # Extract workout logs for the given date
+        # Extract the workout logs for the given date
         workout_logs = existing_record.get(formatted_date, {}).get("workout_logs", [])
 
+        # If workout logs are empty, raise a warning (same as no logs found)
         if not workout_logs:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No workout logs found for user {user_id} on {formatted_date}."
             )
 
-        # Return the workout logs for the specified date
+        # Return the workout logs for the specific date
         return {
             "status": "success",
             "workout_logs": workout_logs
         }
+
