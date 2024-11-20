@@ -411,10 +411,11 @@ async def upload_diet_logs(
 
 
 # Route to display the diet details uploaded by the user to the admin (trainer)
-@router.get('/diet-plan/{date}')
+@router.get('/diet-plan/{user_id}')
 async def get_diet_logs(
-    date: str,  # Path parameter for date
-    user_id: str = Depends(oauth2.require_user)  # This will get the authenticated user ID
+    user_id: str,
+    date: str = Query(..., description="The date needed for diet plan"),
+    auth_user_id: str = Depends(oauth2.require_user)  # This will get the authenticated user ID
 ):
     """
     Fetches the diet logs for a specific user and date from MongoDB.

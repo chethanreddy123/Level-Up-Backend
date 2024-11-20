@@ -29,6 +29,7 @@ Exercises = db.exercises
 WorkoutPlans = db.workout_plans
 DietPlans = db.diet_plans
 FoodItems = db.food_items
+GymPlans = db.gym_plans
 WorkoutandDietTracking = db.workout_and_diet_tracking
 
 # Firebase Initialization (Synchronous)

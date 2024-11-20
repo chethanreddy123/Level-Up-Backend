@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import initialize_database
 from config import settings
-from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management
-
+from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management, subscription_plans
 app = FastAPI()
 
 origins = [
@@ -28,6 +27,7 @@ app.include_router(workout_plan.router, tags=['Workout Plan'], prefix='/api')
 app.include_router(diet_plan.router, tags=['Diet Plan'], prefix='/api')
 app.include_router(food_item.router, tags=['Food Items'], prefix='/api')
 app.include_router(slot_management.router, tags=['Slot Management'], prefix='/api')
+app.include_router(subscription_plans.router, tags=['Subscription'], prefix='/api')
 
 @app.get("/api/healthchecker")
 def root():

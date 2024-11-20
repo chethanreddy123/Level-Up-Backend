@@ -364,28 +364,29 @@ async def create_exercise(
         return ExerciseResponseSchema(id=str(new_exercise['_id']), **new_exercise)
 
 @router.get('/exercises', response_model=dict)
-async def get_all_exercises(
-    payload: GetExercises = Body(...),  # Accept payload from the request body    
-    page: int = Query(1, ge=1),
-    items_per_page: int = Query(10, le=100),
-    user_id: str = Depends(oauth2.require_user)
+async def get_exercises(
+    type: str = Query(None, description="Type of exercise (optional)"),
+    level: str = Query(None, description="Level of exercise (optional)"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    items_per_page: int = Query(10, le=100, description="Number of items per page"),
+    user_id: str = Depends(oauth2.require_user)  # Authenticated user
 ):
     """
     Retrieve all exercises, filtered by type and level, with pagination.
     """
     with handle_errors():
         # Debug: Log the incoming payload
-        logger.info(f"Received payload: {payload}")
+        logger.info(f"Received payload: type:{type}, level:{level}")
 
         # Construct query filter
         query = {}
-        if payload.type:
-            query['type'] = payload.type  # Match the 'type' field
+        if type:
+            query['type'] = type  # Match the 'type' field
         else:
             logger.info("No 'type' filter provided.")
         
-        if payload.level:
-            query['level'] = payload.level  # Match the 'level' field
+        if level:
+            query['level'] = level  # Match the 'level' field
         else:
             logger.info("No 'level' filter provided.")
 
