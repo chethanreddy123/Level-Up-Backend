@@ -18,8 +18,7 @@ router = APIRouter()
 
 @router.post('/workout-plan', status_code=status.HTTP_201_CREATED)
 async def create_workout_plan(
-    payload: WorkoutPlan,
-    user_id: str = Depends(oauth2.require_user)
+    payload: WorkoutPlan
 ):
     """
     Create a new workout plan. This endpoint uploads a workout plan directly to the WorkoutPlans collection.
@@ -67,7 +66,6 @@ async def create_workout_plan(
 @router.get('/workout-plan/{workout_plan_id}', status_code=status.HTTP_200_OK)
 async def get_workout_plan(
     workout_plan_id: str,  # The workout plan ID to retrieve the plan
-    user_id: str = Depends(oauth2.require_user)
 ):
     """
     Retrieve a workout plan by its ID, including exercise details.
@@ -127,7 +125,6 @@ async def get_workout_plan(
 async def update_workout_plan(
     workout_plan_id: str,
     payload: WorkoutPlanUpdateSchema = Body(...),
-    user_id: str = Depends(oauth2.require_user)
 ):
     """
     Update an existing workout plan. 
@@ -188,7 +185,6 @@ async def update_workout_plan(
 @router.delete('/workout-plan/{workout_plan_id}', status_code=status.HTTP_200_OK)
 async def delete_workout_plan(
     workout_plan_id: str,  # Take the workout plan ID directly in the URL path
-    user_id: str = Depends(oauth2.require_user)
 ):
     """
     Delete the existing workout plan by its ID.
@@ -221,7 +217,7 @@ async def delete_workout_plan(
     
 
 @router.get('/workout-plans/get_all_exercises', response_model=List[ExerciseOut], status_code=status.HTTP_200_OK)
-async def get_all_exercises(user_id: str = Depends(oauth2.require_user)):
+async def get_all_exercises():
     """
     Retrieve all exercises with only ID and name.
     """
