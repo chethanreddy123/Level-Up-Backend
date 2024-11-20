@@ -8,7 +8,7 @@ from app.utilities.email_services import send_email
 from app.utilities.utils import get_next_registration_id
 
 from app import oauth2
-from app.database import create_indexes, User
+from app.database import User
 from app.serializers.userSerializers import userEntity, userResponseEntity
 from app.utilities import utils
 from app.schemas import user
@@ -24,80 +24,53 @@ REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 @router.post('/register', status_code=status.HTTP_201_CREATED, response_model=user.UserResponse)
 async def create_user(payload: user.CreateUserSchema):
     with handle_errors():
-        # Check if user already exists
-        existing_user = await User.find_one({'email': payload.email.lower()})
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail='Account already exists'
-            )
-
+        # Check if user already exist
+        user = User.find_one({'email': payload.email.lower()})
+        if user:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                detail='Account already exist')
         # Compare password and password_confirm
         if payload.password != payload.password_confirm:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail='Passwords do not match'
-            )
-
-        # Hash the password
+                status_code=status.HTTP_400_BAD_REQUEST, detail='Passwords do not match')
+        #  Hash the password
         payload.password = utils.hash_password(payload.password)
         del payload.password_confirm
-
-        # Set default role and other fields
         payload.role = payload.role or 'CUSTOMER'
         payload.verified = True
         payload.email = payload.email.lower()
         payload.created_at = datetime.utcnow()
         payload.updated_at = payload.created_at
 
-        # Generate Registration ID
-        payload.registration_id = await get_next_registration_id()
+        # creating the Registration ID
+        payload.registration_id = get_next_registration_id()
 
-        # Insert the user into the database
-        result = await User.insert_one(payload.dict())
-        if not result.inserted_id:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail='Failed to create user'
-            )
-
-        # Fetch the newly created user
-        new_user_data = await User.find_one({'_id': result.inserted_id})
-        if not new_user_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='User not found after creation'
-            )
-
-        # Transform to response schema
-        new_user = userResponseEntity(new_user_data)
-
-        # Send welcome email for CUSTOMER role
+        # For CUSTOMER role, we need to create a new registration id and send an email
         if payload.role == 'CUSTOMER':
             try:
                 await send_email(
                     sender_email="aioverflow.ml@gmail.com",
-                    sender_password="tvnt qtww egyq ktes",  # Retrieve from config in production
+                    sender_password="tvnt qtww egyq ktes", # Need to get it from config
                     to_email=payload.email,
                     cc_emails=None,
                     subject="Welcome to Our Gym App!",
-                    message=f"Hi {payload.name},\n\n"
-                            f"Thank you for registering with our gym app!\n\n"
-                            f"Download the app and start your fitness journey.\n\n"
-                            f"Best regards,\nThe Gym Team"
+                    message=f"Hi {payload.name},\n\nThank you for registering with our gym app!\n\nDownload the app and start your fitness journey.\n\nBest regards,\nThe Gym Team"
                 )
             except Exception as e:
-                loguru.logger.error(f"Error sending email: {e}")
+                loguru.logger.error(f"Error sending email or reg id creation: {e}")
 
+        result = User.insert_one(payload.dict())
+        new_user = userResponseEntity(
+            User.find_one({'_id': result.inserted_id}))
         return {"status": "success", "user": new_user}
 
 
 
 @router.post('/login')
-async def login(payload: user.LoginUserSchema, response: Response, Authorize: AuthJWT = Depends()):
+def login(payload: user.LoginUserSchema, response: Response, Authorize: AuthJWT = Depends()):
     with handle_errors():
-        # Check if the user exists
-        db_user = await User.find_one({'email': payload.email.lower()})
+        # Check if the user exist
+        db_user = User.find_one({'email': payload.email.lower()})
         if not db_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail='Incorrect Email or Password')
@@ -124,9 +97,8 @@ async def login(payload: user.LoginUserSchema, response: Response, Authorize: Au
         response.set_cookie('logged_in', 'True', ACCESS_TOKEN_EXPIRES_IN * 60,
                             ACCESS_TOKEN_EXPIRES_IN * 60, '/', None, False, False, 'lax')
 
-        # Send both access and refresh tokens
+        # Send both access
         return {'status': 'success', 'access_token': access_token}
-
 
 
 @router.get('/refresh')
