@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, constr, Field
+from pydantic import BaseModel, EmailStr, constr
 from typing import Optional
 from enum import Enum
 
@@ -63,18 +63,3 @@ class UserRegistration(BaseModel):
 
     def set_updated_timestamp(self):
         self.updated_at = datetime.utcnow()
-
-# To upload user diet logs in mongodb
-class UploadFoodRequest(BaseModel):
-    food_name: str = Field(..., title="Food Name", description="Name of the food item")
-    quantity: float = Field(..., title="Quantity", description="Quantity of the food item")
-    unit: Optional[str] = Field(None, title="Unit", description="Unit of the quantity (e.g., grams, ml, pieces)")
-
-    class Config:
-        schema_extra = {
-            "example": {
-                "food_name": "Banana",
-                "quantity": 1,
-                "unit": None  # No unit needed for fruits like banana
-            }
-        }

@@ -5,54 +5,28 @@ from fastapi_jwt_auth import AuthJWT
 from pydantic import BaseModel
 from bson.objectid import ObjectId
 from loguru import logger
+
 from app.serializers.userSerializers import userEntity
 from .database import User
 from config import settings
 
 
-# Function to decode base64 keys with proper padding handling
-def decode_base64_key(key: str) -> str:
-    """Decode the base64-encoded key and return the PEM format as a string."""
-    # Ensure the key length is a multiple of 4 by adding necessary padding
-    padding = len(key) % 4
-    if padding != 0:
-        key += '=' * (4 - padding)  # Add the correct number of '=' to pad the key
-    decoded_key = base64.b64decode(key).decode("utf-8")
-    return decoded_key
-
-
 class Settings(BaseModel):
-    authjwt_algorithm: str
-    authjwt_decode_algorithms: List[str]
-    authjwt_token_location: set
-    authjwt_access_cookie_key: str
-    authjwt_refresh_cookie_key: str
-    authjwt_cookie_csrf_protect: bool
-    authjwt_public_key: str
-    authjwt_private_key: str
+    authjwt_algorithm: str = settings.JWT_ALGORITHM
+    authjwt_decode_algorithms: List[str] = [settings.JWT_ALGORITHM]
+    authjwt_token_location: set = {'cookies', 'headers'}
+    authjwt_access_cookie_key: str = 'access_token'
+    authjwt_refresh_cookie_key: str = 'refresh_token'
+    authjwt_cookie_csrf_protect: bool = False
+    authjwt_public_key: str = base64.b64decode(
+        settings.JWT_PUBLIC_KEY).decode('utf-8')
+    authjwt_private_key: str = base64.b64decode(
+        settings.JWT_PRIVATE_KEY).decode('utf-8')
 
-    @classmethod
-    def from_settings(cls, settings):
-        """Create the settings instance from the loaded settings"""
-        return cls(
-            authjwt_algorithm=settings.JWT_ALGORITHM,
-            authjwt_decode_algorithms=[settings.JWT_ALGORITHM],
-            authjwt_token_location={'cookies', 'headers'},
-            authjwt_access_cookie_key='access_token',
-            authjwt_refresh_cookie_key='refresh_token',
-            authjwt_cookie_csrf_protect=False,
-            authjwt_public_key=decode_base64_key(settings.JWT_PUBLIC_KEY),  # Decode the public key
-            authjwt_private_key=decode_base64_key(settings.JWT_PRIVATE_KEY),  # Decode the private key
-        )
-
-
-# Get the settings from the environment
-settings_instance = Settings.from_settings(settings)
 
 @AuthJWT.load_config
 def get_config():
-    # Return the settings instance for AuthJWT to use
-    return settings_instance
+    return Settings()
 
 
 class NotVerified(Exception):
@@ -63,7 +37,7 @@ class UserNotFound(Exception):
     pass
 
 
-async def require_user(Authorize: AuthJWT = Depends()):
+def require_user(Authorize: AuthJWT = Depends()):
     """
     Dependency to check if the user is authenticated.
     Returns the user ID if the user is authenticated and verified.
@@ -75,9 +49,8 @@ async def require_user(Authorize: AuthJWT = Depends()):
         # Retrieve the user ID from the JWT token's subject (sub)
         user_id = Authorize.get_jwt_subject()
         
-        # Fetch the user document using the user_id asynchronously
-        db_user = await User.find_one({'_id': ObjectId(str(user_id))})
-        user = userEntity(db_user) if db_user else None
+        # Fetch the user document using the user_id
+        user = userEntity(User.find_one({'_id': ObjectId(str(user_id))}))
 
         # Check if the user exists in the database
         if not user:
@@ -104,7 +77,6 @@ async def require_user(Authorize: AuthJWT = Depends()):
 
     # Return only the user ID instead of the entire user object
     return user_id
-
 
 def require_admin(user: dict = Depends(require_user)):
     """
