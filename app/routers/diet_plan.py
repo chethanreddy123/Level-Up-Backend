@@ -332,7 +332,7 @@ async def upload_diet_logs(
 
 
 # Route to display the diet details uploaded by the user to the admin (trainer)
-@router.get('/diet-plan/{user_id}')
+@router.get('/diet-plan/get_diet_logs/{user_id}')
 async def get_diet_logs(
     user_id: str,
     date: str = Query(..., description="The date needed for diet plan"),
