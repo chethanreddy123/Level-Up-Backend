@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from firebase_admin import credentials, initialize_app, storage
 from config import settings
 import logging
+from pymongo import ASCENDING
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +31,10 @@ WorkoutPlans = db.workout_plans
 DietPlans = db.diet_plans
 FoodItems = db.food_items
 GymPlans = db.gym_plans
+UserAttendance = db.user_attendance
 WorkoutandDietTracking = db.workout_and_diet_tracking
+
+
 
 # Firebase Initialization (Synchronous)
 def initialize_firebase():

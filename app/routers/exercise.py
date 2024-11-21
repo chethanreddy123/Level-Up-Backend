@@ -23,7 +23,7 @@ async def add_workout_plan(
     auth_user_id: str = Depends(oauth2.require_user)
 ):
     """
-    Add a new workout plan for the customer (manual customer_id), including start date, end date, and empty progress.
+    Add a new workout plan for the customer (manual customer_id), including start date, end date and weight goals.
     """
     with handle_errors():
         logger.info(f"Adding workout plan for customer ID: {user_id} by trainer ID: {auth_user_id}")
@@ -129,66 +129,6 @@ async def get_workout_plan(
             workout_plan_details=WorkoutPlanDetails(**workout_plan)  # Unpack workout_plan into WorkoutPlanDetails
         )
 
-# @router.post('/workout-plan/progress', status_code=status.HTTP_201_CREATED)
-# async def add_workout_progress(
-#     payload: DayProgressSchema,
-#     user_id: str = Depends(oauth2.require_user)
-# ):
-#     """
-#     Add a workout progress entry for a specific day in the user's workout plan.
-#     """
-#     with handle_errors():
-#         # Log user_id for debugging
-#         logger.info(f"Adding workout progress for user ID: {user_id}")
-
-#         # Convert user_id to ObjectId for MongoDB operations
-#         user_id = ObjectId(user_id)
-
-#         # Fetch the user's workout plan
-#         existing_user = User.find_one({"_id": user_id})
-#         if not existing_user:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail="User not found"
-#             )
-        
-#         # Check if the user has a workout plan
-#         if "workout_plan" not in existing_user:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail="No workout plan found for the user."
-#             )
-
-#         # Append the new day's progress to the existing workout plan's progress
-#         workout_plan = existing_user["workout_plan"]
-#         if "progress" not in workout_plan:
-#             workout_plan["progress"] = []
-
-#         # Check if the day already exists and update it
-#         day_exists = False
-#         for day_progress in workout_plan["progress"]:
-#             if day_progress["day"] == payload.day:
-#                 day_progress["exercises"] = payload.exercises
-#                 day_exists = True
-#                 break
-
-#         # If day does not exist, append the new day progress
-#         if not day_exists:
-#             workout_plan["progress"].append(payload.dict())
-
-#         # Update the workout plan in the user document
-#         update_result = User.update_one(
-#             {"_id": user_id},
-#             {"$set": {"workout_plan": workout_plan}}
-#         )
-
-#         if update_result.modified_count == 0:
-#             raise HTTPException(
-#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#                 detail="Failed to add workout progress."
-#             )
-
-#         return {"message": "Workout progress added successfully!"}
 
 @router.put('/workout-plans', status_code=status.HTTP_200_OK)
 async def update_workout_plan(
@@ -324,7 +264,7 @@ async def delete_workout_plan(
 
 
 
-# Exercise CRUD operations:
+# Exercise CRUD operations
 
 @router.post('/exercise', status_code=status.HTTP_201_CREATED, response_model=ExerciseResponseSchema)
 async def create_exercise(
@@ -633,7 +573,7 @@ async def get_workout_logs(
     user_id: str = Query(..., description="Customer ID whose workout logs will be fetched")  # User ID from query
 ):
     """
-    Fetches the workout logs for a specific user and date from MongoDB.
+    Fetches the workout logs for a specific user and date from MongoDB for the trainer and admin to track.
     """
     with handle_errors():
         # Log input data for debugging
