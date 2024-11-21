@@ -84,9 +84,9 @@ async def create_diet_plan(
         )
 
 
-@router.get('/diet-plan', response_model=DietPlanResponseSchema)
+@router.get('/diet-plan/{user_id}', response_model=DietPlanResponseSchema)
 async def get_diet_plan_for_user(
-    user_id: str = Query(..., description="User ID to get the diet plan for"),
+    user_id: str,
     auth_user_id: str = Depends(oauth2.require_user)
 ):
     """

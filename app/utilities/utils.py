@@ -13,12 +13,12 @@ def verify_password(password: str, hashed_password: str):
     return pwd_context.verify(password, hashed_password)
 
 # Make the function async because User.find_one is asynchronous
-async def get_next_registration_id():
+def get_next_registration_id():
     current_year = datetime.now().year
     year_suffix = str(current_year)[-2:]
 
     # Retrieve the most recent registration ID asynchronously
-    recent_user = await User.find_one(
+    recent_user = User.find_one(
         {"registration_id": {"$exists": True}},
         sort=[("_id", -1)],
         projection={"registration_id": True}

@@ -301,7 +301,10 @@ async def create_exercise(
         # Fetch the newly inserted exercise
         new_exercise =  Exercises.find_one({'_id': result.inserted_id})
 
-        return ExerciseResponseSchema(id=str(new_exercise['_id']), **new_exercise)
+        return ExerciseResponseSchema(
+            id=str(new_exercise['_id']),
+            message="Exercise created successfully!", 
+            **new_exercise)
 
 @router.get('/exercises', response_model=dict)
 async def get_exercises(
@@ -430,7 +433,10 @@ async def update_exercise(
                 detail="Exercise not found."
             )
 
-        return ExerciseResponseSchema(id=str(update_result['_id']), **update_result)
+        return ExerciseResponseSchema(
+            id=str(update_result['_id']), 
+            message="Exercise updated successfully!",
+            **update_result)
 
 
 @router.delete('/exercise/{exercise_id}', status_code=status.HTTP_200_OK)
@@ -566,11 +572,11 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
                 "message": f"Workout data for {workout_name} uploaded successfully for {formatted_date}!"
             }
 
-@router.get('/exercise/workout_logs/{date}')
+@router.get('/exercise/workout_logs/{user_id}')
 async def get_workout_logs(
-    date: str,  # Path parameter for date (format: dd-mm-yyyy)
+    user_id: str,  # Path parameter for date (format: dd-mm-yyyy)
     auth_user_id: str = Depends(oauth2.require_user),  # Authenticated user ID
-    user_id: str = Query(..., description="Customer ID whose workout logs will be fetched")  # User ID from query
+    date: str = Query(..., description="The date for which the workout logs are needed")
 ):
     """
     Fetches the workout logs for a specific user and date from MongoDB for the trainer and admin to track.
