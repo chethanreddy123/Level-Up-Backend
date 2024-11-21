@@ -78,7 +78,6 @@ def mark_attendance(
 
 @router.post('/mark-absent', status_code=status.HTTP_201_CREATED)
 def mark_absent(
-    auth_user_id: str = Depends(oauth2.require_user)  # Getting authenticated user
 ):
     """
     Mark all users as absent if they haven't been marked present for the current day.
