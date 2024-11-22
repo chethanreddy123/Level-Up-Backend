@@ -23,7 +23,8 @@ async def add_workout_plan(
     auth_user_id: str = Depends(oauth2.require_user)
 ):
     """
-    Add a new workout plan for the customer (manual customer_id), including start date, end date and weight goals.
+    Add a new workout plan for the customer (manual customer_id), including start date, end date, weight goals,
+    and the workout plan name from the WorkoutPlans collection.
     """
     with handle_errors():
         logger.info(f"Adding workout plan for customer ID: {user_id} by trainer ID: {auth_user_id}")
@@ -35,12 +36,34 @@ async def add_workout_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid customer ID format.")
 
         # Check if the customer exists in the database
-        existing_customer =  User.find_one({"_id": customer_id})
+        existing_customer = User.find_one({"_id": customer_id})
         if not existing_customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Customer not found"
             )
+
+        # Retrieve the workout plan ID from the payload
+        workout_plan_id = payload.workout_plan_id
+
+        # Fetch the workout plan name from the WorkoutPlans collection
+        workout_plan = WorkoutPlans.find_one({"_id": ObjectId(workout_plan_id)})
+        if not workout_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workout plan not found"
+            )
+        
+        # Get the workout plan name from the fetched workout plan
+        workout_plan_name = workout_plan.get("workout_plan_name", "Unknown")
+
+        # Prepare the workout plan details to be added to the user
+        workout_plan_data = payload.dict()
+        workout_plan_data["start_date"] = workout_plan_data["start_date"].isoformat()
+        workout_plan_data["end_date"] = workout_plan_data["end_date"].isoformat()
+        workout_plan_data["workout_plan_name"] = workout_plan_name  # Add the workout plan name
+        workout_plan_data["created_at"] = get_current_ist_time()[1]
+        workout_plan_data["updated_at"] = get_current_ist_time()[1]
 
         # Check if a workout plan is already assigned
         assigned_workout_plan = existing_customer.get("workout_plan")
@@ -48,29 +71,14 @@ async def add_workout_plan(
             assigned_workout_plan_id = assigned_workout_plan.get("workout_plan_id")
 
             # Compare the IDs properly
-            if assigned_workout_plan_id == payload.workout_plan_id:
-                # Fetch the workout plan name from the WorkoutPlans collection
-                assigned_plan =  WorkoutPlans.find_one({"_id": ObjectId(assigned_workout_plan_id)})
-                assigned_plan_name = assigned_plan.get("workout_plan_name", "Unknown") if assigned_plan else "Unknown"
-                
+            if assigned_workout_plan_id == workout_plan_id:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=f"The workout plan '{assigned_plan_name}' is already assigned to the user."
+                    detail=f"The workout plan '{workout_plan_name}' is already assigned to the user."
                 )
 
-        # Prepare the workout plan details
-        workout_plan_data = payload.dict()
-        workout_plan_data["start_date"] = workout_plan_data["start_date"].isoformat()
-        workout_plan_data["end_date"] = workout_plan_data["end_date"].isoformat()
-
-        # Add timestamps
-        formatted_date, formatted_time = get_current_ist_time()
-        datetime_str = f"{formatted_date} {formatted_time}"
-        workout_plan_data["created_at"] = datetime_str
-        workout_plan_data["updated_at"] = datetime_str
-
         # Assign the workout plan to the customer
-        update_result =  User.update_one(
+        update_result = User.update_one(
             {"_id": customer_id},
             {"$set": {"workout_plan": workout_plan_data}}
         )
@@ -87,6 +95,7 @@ async def add_workout_plan(
             message="Workout plan details added successfully",
             workout_plan_details=WorkoutPlanDetails(**payload.dict())
         )
+
 
 
 @router.get('/workout-plans', status_code=status.HTTP_200_OK)

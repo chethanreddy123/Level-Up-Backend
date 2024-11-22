@@ -5,6 +5,7 @@ class FoodItemSchema(BaseModel):
     food_name: str  # Required field
     energy_kcal: Optional[float] = Field(None, description="Energy value in kcal.")
     quantity: Optional[str] = Field(None, description="Quantity of the food item.")
+    units: Optional[str] = Field(None, description="Units in which it is measured.")
     carbohydrates: Optional[float] = Field(None, description="Carbohydrates in grams.")
     protein: Optional[float] = Field(None, description="Protein in grams.")
     fat: Optional[float] = Field(None, description="Fat in grams.")

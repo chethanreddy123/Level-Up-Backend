@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import initialize_database
+from app.utilities import firebase_upload
 from config import settings
-from app.routers import auth, user, forms, screening, exercise, \
-    workout_plan, diet_plan, food_item, slot_management, subscription_plans, user_attendance 
+from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management, subscription_plans, user_attendance 
 app = FastAPI()
 
 origins = [
@@ -20,7 +20,7 @@ app.add_middleware(
 
 # Include your routers
 app.include_router(auth.router, tags=['Auth'], prefix='/api/auth')
-app.include_router(user.router, tags=['Users'], prefix='/api/users')
+app.include_router(user.router, tags=['Users'], prefix='/api')
 app.include_router(forms.router, tags=['Forms'], prefix='/api/forms')
 app.include_router(screening.router, tags=['Screening'], prefix='/api')
 app.include_router(exercise.router, tags=['Exercises'], prefix='/api')
@@ -30,6 +30,7 @@ app.include_router(food_item.router, tags=['Food Items'], prefix='/api')
 app.include_router(slot_management.router, tags=['Slot Management'], prefix='/api')
 app.include_router(subscription_plans.router, tags=['Subscription'], prefix='/api')
 app.include_router(user_attendance.router, tags=['User Attendance'], prefix='/api')
+
 
 @app.get("/api/healthchecker")
 def root():

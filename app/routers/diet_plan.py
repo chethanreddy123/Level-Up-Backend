@@ -1,9 +1,11 @@
 # app/routers/diet_plan.py
 
+import mimetypes
+from firebase_admin import storage
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile, Body
 from bson.objectid import ObjectId
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from loguru import logger
 
 from app.database import User, DietPlans, WorkoutandDietTracking, FoodItems, UserSlots
@@ -11,7 +13,7 @@ from app.schemas.diet_plan import DietPlan, DietPlanResponseSchema, UpdateDietPl
 from app.utilities.error_handler import handle_errors
 from .. import oauth2
 from app.utilities.utils import get_current_ist_time
-from app.utilities.firebase import upload_image_to_firebase
+from app.utilities.firebase_upload import upload_image_to_firebase
 from pymongo.errors import PyMongoError
 
 router = APIRouter()
@@ -23,6 +25,7 @@ async def create_diet_plan(
 ):
     """
     Create a new diet plan for a specific user, using user_id as the diet_plan_id.
+    Also adds the diet plan details (name, id) to the User document under diet_plan.
     """
 
     with handle_errors():
@@ -35,7 +38,7 @@ async def create_diet_plan(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format.")
 
         # Check if the user exists in the database
-        existing_user =  User.find_one({"_id": user_id})
+        existing_user = User.find_one({"_id": user_id})
         if not existing_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -43,7 +46,7 @@ async def create_diet_plan(
             )
 
         # Check if the diet plan already exists for the user
-        existing_diet_plan =  DietPlans.find_one({"_id": user_id})
+        existing_diet_plan = DietPlans.find_one({"_id": user_id})
         if existing_diet_plan:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -52,13 +55,12 @@ async def create_diet_plan(
 
         # Prepare the diet plan data
         diet_plan_data = payload.dict()
-        
+
         # Get the current time in IST from the helper function
         formatted_date, formatted_time = get_current_ist_time()
 
         # Combine the date and time into a single string
         datetime_str = f"{formatted_date} {formatted_time}"
-
 
         # Add timestamps for created_at and updated_at
         diet_plan_data["created_at"] = datetime_str
@@ -68,14 +70,35 @@ async def create_diet_plan(
         diet_plan_data["_id"] = user_id  # Use user_id as the diet plan _id
 
         # Insert the diet plan into DietPlans collection
-        result =  DietPlans.insert_one(diet_plan_data)
-        
+        result = DietPlans.insert_one(diet_plan_data)
+
         # Fetch the newly inserted diet plan from the collection using the user_id as _id
-        new_diet_plan =  DietPlans.find_one({"_id": user_id})
+        new_diet_plan = DietPlans.find_one({"_id": user_id})
 
         # Convert _id from ObjectId to string and return the response
         if new_diet_plan:
             new_diet_plan['_id'] = str(new_diet_plan['_id'])  # Convert ObjectId to string
+
+            # Add the diet plan details to the User document
+            user_update_result = User.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "diet_plan": {
+                            "diet_plan_id": new_diet_plan["_id"],
+                            "diet_plan_name": new_diet_plan.get("diet_name", "Unknown")
+                        }
+                    }
+                }
+            )
+
+            if user_update_result.modified_count == 0:
+                logger.error(f"Failed to update user with diet plan details")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to update user with diet plan details."
+                )
+
             return DietPlanResponseSchema(diet_id=new_diet_plan['_id'], **new_diet_plan)
 
         raise HTTPException(
@@ -231,6 +254,54 @@ async def delete_diet_plan(
         }
 
 
+# ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
+
+# def upload_image_to_firebase(file, user_id, food_name) -> str:
+#     """
+#     Uploads an image file to Firebase Storage under the folder structure:
+#     'level_up_images/{user_id}/{date}/{food_name}{extension}'.
+#     Returns the public URL if the image is uploaded successfully.
+#     If the same food image has been uploaded before, it raises an exception
+#     with the previous upload timestamp.
+#     """
+#     # Extract the content type (MIME type) of the uploaded file
+#     content_type = file.content_type
+
+#     # Validate that the file is one of the allowed image types
+#     if content_type not in ALLOWED_IMAGE_TYPES:
+#         raise ValueError(f"Invalid file type: {content_type}. Only image files are allowed.")
+
+#     # Extract the file extension based on the content type
+#     extension = mimetypes.guess_extension(content_type)
+#     if not extension:
+#         raise ValueError("Unsupported file type")
+
+#     # Get the current date in the format 'MM-DD-YY'
+#     current_date = datetime.now().strftime("%d-%m-%y")
+
+#     # Define the file path with the folder structure: 'level_up_images/{user_id}/{date}/{food_name}{extension}'
+#     file_path = f"level_up_images/{user_id}/{current_date}/{food_name}{extension}"
+
+#     try:
+#         # Initialize Firebase Storage bucket
+#         bucket = storage.bucket()
+#         blob = bucket.blob(file_path)
+
+#         # Upload the new file to Firebase Storage
+#         logger.debug(f"Uploading file: {file.filename}")
+#         blob.upload_from_file(file.file, content_type=content_type)
+#         blob.make_public()
+
+#         # Return the public URL of the uploaded image
+#         logger.info(f"Image uploaded successfully. Public URL: {blob.public_url}")
+#         return blob.public_url
+    
+#     except Exception as e:
+#         logger.error(f"Error during file upload: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Error uploading file to Firebase: {str(e)}")
+
+
+
 @router.post('/diet-plan/upload_diet_logs')
 async def upload_diet_logs(
     food_name: str = Form(...),  # Required form field
@@ -240,9 +311,11 @@ async def upload_diet_logs(
     user_id: str = Depends(oauth2.require_user)  # Authenticated user ID
 ):
     """
-    Uploads a diet log (food intake) for a user, storing the food information along with the uploaded image.
-    If the same food has already been uploaded for the given date, returns an error.
+    Uploads a diet log entry for a user, including food details and an optional image.
+    Checks if the food has already been uploaded for the given date and user.
+    If no entry exists for the date, it creates a new entry; otherwise, it appends the new diet log.
     """
+    
     with handle_errors():
         user_id = str(user_id)
 
@@ -250,12 +323,10 @@ async def upload_diet_logs(
         formatted_date, formatted_time = get_current_ist_time()
 
         # Check if the food_name already exists for the given date and user in MongoDB
-        existing_record =  WorkoutandDietTracking.find_one(
+        existing_record = WorkoutandDietTracking.find_one(
             {"_id": user_id, f"{formatted_date}.diet_logs": {"$elemMatch": {"food_name": food_name}}}
         )
-
         if existing_record:
-            # If the food_name already exists for the date, raise an error
             raise HTTPException(
                 status_code=400,
                 detail=f"The info about {food_name.title()} has already been uploaded for {formatted_date}."
@@ -263,10 +334,18 @@ async def upload_diet_logs(
 
         # Initialize image_url variable to None
         image_url = None
-
         if image:
-            # Upload image to Firebase and get the URL
-            image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name)
+            try:
+                # Debugging: Log file attributes to ensure it's received correctly
+                logger.debug(f"Received image: {image.filename}, Content type: {image.content_type}")
+
+                # Upload image to Firebase and get the URL
+                image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name)
+                logger.debug(f"Image uploaded successfully, URL: {image_url}")
+
+            except Exception as e:
+                logger.error(f"Failed to upload image to Firebase: {str(e)}")
+                raise HTTPException(status_code=500, detail="Image upload failed")
 
         # Create the new diet log entry
         new_diet_log = {
@@ -277,98 +356,221 @@ async def upload_diet_logs(
             "uploaded_time": formatted_time
         }
 
-        # Check if a record for this date already exists
-        existing_record =  WorkoutandDietTracking.find_one({"_id": user_id, formatted_date: {"$exists": True}})
+        # Find the existing user record
+        existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
 
-        if not existing_record:
-            # If no record exists for this date, create a new record for the user
-            new_record = {
-                "_id": user_id,
-                formatted_date: {
-                    "workout_logs": [],  # Initially empty workout logs
-                    "diet_logs": [new_diet_log]  # New diet log for today
-                }
-            }
-
-            try:
-                # Insert the new diet data into MongoDB
-                 WorkoutandDietTracking.insert_one(new_record)
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-            return {
-                "status": "success",
-                "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
-            }
+        if existing_record:
+            # Check if the specific date field (e.g., '21-11-2024') exists
+            if formatted_date in existing_record:
+                # If the date exists, append the new diet log to that date's diet_logs array
+                try:
+                    WorkoutandDietTracking.update_one(
+                        {"_id": user_id},
+                        {
+                            "$push": {f"{formatted_date}.diet_logs": new_diet_log}
+                        }
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!",
+                        "image_url": image_url  # Return the image URL here
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to update diet logs for {formatted_date}: {str(e)}")
+                    raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+            else:
+                # If the date does not exist, create the new date field and initialize diet_logs
+                try:
+                    WorkoutandDietTracking.update_one(
+                        {"_id": user_id},
+                        {
+                            "$set": {  # Use $set to create a new date field if it doesn't exist
+                                f"{formatted_date}": {
+                                    "workout_logs": [],  # Empty workout_logs for the new date
+                                    "diet_logs": [new_diet_log]  # Add the new diet log for today
+                                }
+                            }
+                        }
+                    )
+                    return {
+                        "status": "success",
+                        "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!",
+                        "image_url": image_url  # Return the image URL here
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to set diet logs for {formatted_date}: {str(e)}")
+                    raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
         else:
-            # If the record for the date already exists, we need to add the new diet log
-            existing_diet_logs = existing_record.get(formatted_date, {}).get("diet_logs", [])
+            # If the user record doesn't exist, handle this case (optional)
+            raise HTTPException(status_code=404, detail="User not found")
 
-            # Ensure that the existing diet logs are a list
-            if not isinstance(existing_diet_logs, list):
-                existing_diet_logs = []  # Default to an empty list if not
 
-            # Append the new diet log
-            existing_diet_logs.append(new_diet_log)
+# @router.post('/diet-plan/upload_diet_logs')
+# async def upload_diet_logs(
+#     food_name: str = Form(...),  # Required form field
+#     quantity: float = Form(...),  # Required quantity field
+#     units: Optional[str] = Form(None),  # Optional units field
+#     image: Optional[UploadFile] = File(None),  # Optional image file
+#     user_id: str = Depends(oauth2.require_user)  # Authenticated user ID
+# ):
+#     with handle_errors():
+#         user_id = str(user_id)
 
-            # Update the existing record with the new diet log
-            try:
-                WorkoutandDietTracking.update_one(
-                    {"_id": user_id},
-                    {
-                        "$set": {  # Use $set to add or update the date field
-                            f"{formatted_date}.diet_logs": existing_diet_logs
-                        }
-                    }
-                )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+#         # Get the formatted date and time in IST
+#         formatted_date, formatted_time = get_current_ist_time()
 
-            return {
-                "status": "success",
-                "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
-            }
+#         # Check if the food_name already exists for the given date and user in MongoDB
+#         existing_record = WorkoutandDietTracking.find_one(
+#             {"_id": user_id, f"{formatted_date}.diet_logs": {"$elemMatch": {"food_name": food_name}}}
+#         )
+#         if existing_record:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail=f"The info about {food_name.title()} has already been uploaded for {formatted_date}."
+#             )
+
+#         # Initialize image_url variable to None
+#         image_url = None
+#         if image:
+#             try:
+#                 # Debugging: Log file attributes to ensure it's received correctly
+#                 logger.debug(f"Received image: {image.filename}, Content type: {image.content_type}")
+
+#                 # Upload image to Firebase and get the URL
+#                 image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name)
+#                 logger.debug(f"Image uploaded successfully, URL: {image_url}")
+
+#             except Exception as e:
+#                 logger.error(f"Failed to upload image to Firebase: {str(e)}")
+#                 raise HTTPException(status_code=500, detail="Image upload failed")
+
+#         # Create the new diet log entry
+#         new_diet_log = {
+#             "food_name": food_name,
+#             "quantity": quantity,
+#             "units": units,
+#             "image_url": image_url,  # Can be None or a placeholder
+#             "uploaded_time": formatted_time
+#         }
+
+#         # Find the existing user record
+#         existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
+
+#         if existing_record:
+#             # Check if the specific date field (e.g., '21-11-2024') exists
+#             if formatted_date in existing_record:
+#                 # If the date exists, append the new diet log to that date's diet_logs array
+#                 try:
+#                     WorkoutandDietTracking.update_one(
+#                         {"_id": user_id},
+#                         {
+#                             "$push": {f"{formatted_date}.diet_logs": new_diet_log}
+#                         }
+#                     )
+#                     return {
+#                         "status": "success",
+#                         "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
+#                     }
+#                 except Exception as e:
+#                     logger.error(f"Failed to update diet logs for {formatted_date}: {str(e)}")
+#                     raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+#             else:
+#                 # If the date does not exist, create the new date field and initialize diet_logs
+#                 try:
+#                     WorkoutandDietTracking.update_one(
+#                         {"_id": user_id},
+#                         {
+#                             "$set": {  # Use $set to create a new date field if it doesn't exist
+#                                 f"{formatted_date}": {
+#                                     "workout_logs": [],  # Empty workout_logs for the new date
+#                                     "diet_logs": [new_diet_log]  # Add the new diet log for today
+#                                 }
+#                             }
+#                         }
+#                     )
+#                     return {
+#                         "status": "success",
+#                         "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
+#                     }
+#                 except Exception as e:
+#                     logger.error(f"Failed to set diet logs for {formatted_date}: {str(e)}")
+#                     raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+#         else:
+#             # If the user record doesn't exist, handle this case (optional)
+#             raise HTTPException(status_code=404, detail="User not found")
 
 
 # Route to display the diet details uploaded by the user to the admin (trainer)
 @router.get('/diet-plan/get_diet_logs/{user_id}')
 async def get_diet_logs(
     user_id: str,
-    date: str = Query(..., description="The date needed for diet plan"),
+    from_date: str = Query(..., description="Start date for diet logs (format: dd-mm-yyyy)"),
+    to_date: str = Query(..., description="End date for diet logs (format: dd-mm-yyyy)"),
     auth_user_id: str = Depends(oauth2.require_user)  # This will get the authenticated user ID
 ):
     """
-    Fetches the diet logs for a specific user and date from MongoDB for the admin and trainer to track.
+    Fetches the diet logs for a specific user within a date range from MongoDB.
+    The food items for each date will be grouped into a list.
+    If no logs are found for a specific day, or if the date doesn't exist, 
+    the message 'No diet logs for this date' will be returned.
     """
     with handle_errors():
-        # Get the user_id from the authenticated user
+        # Ensure user_id is a string (in case it's not already)
         user_id = str(user_id)
 
-        # Parse the formatted date (assuming it's in the format "dd-mm-yyyy")
-        formatted_date = date  # You can apply any necessary formatting here if required
+        # Convert the string dates to datetime objects for comparison
+        try:
+            from_date = datetime.strptime(from_date, "%d-%m-%Y")
+            to_date = datetime.strptime(to_date, "%d-%m-%Y")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Please use 'dd-mm-yyyy'."
+            )
 
-        # Find the record for the given user and date in the MongoDB collection
-        existing_record = WorkoutandDietTracking.find_one(
-            {"_id": user_id, formatted_date: {"$exists": True}}
-        )
+        # Fetch the record for the specific user
+        existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
 
         if not existing_record:
             raise HTTPException(
                 status_code=404,
-                detail=f"No diet logs found for user {user_id} on {formatted_date}."
+                detail=f"No diet logs found for user {user_id}."
             )
 
-        # Extract the diet logs for the given date
-        diet_logs = existing_record.get(formatted_date, {}).get("diet_logs", [])
+        # Initialize a dictionary to group the diet logs by date
+        grouped_diet_logs = {}
 
-        # Return the diet logs for the specific date
+        # Iterate through all the dates in the range
+        current_date = from_date
+        while current_date <= to_date:
+            date_key = current_date.strftime("%d-%m-%Y")  # Format the date to match MongoDB's date format
+
+            # Check if the date exists in the database
+            date_data = existing_record.get(date_key)
+
+            if date_data:
+                # If there are diet logs for this date, use them
+                food_items = date_data.get("diet_logs", [])
+                if food_items:
+                    grouped_diet_logs[date_key] = food_items
+                else:
+                    # If no food items for this date, add the "No diet logs for this date" message
+                    grouped_diet_logs[date_key] = "No diet logs for this date"
+            else:
+                # If the date doesn't exist, return the "No diet logs for this date" message
+                grouped_diet_logs[date_key] = "No diet logs for this date"
+
+            # Move to the next date
+            current_date += timedelta(days=1)
+
+        # Return the grouped diet logs for the specified date range
         return {
             "status": "success",
-            "diet_logs": diet_logs
+            "diet_logs": grouped_diet_logs
         }
-
-
+    
 # Ignore these
 
 # @router.post('/dump-slots', status_code=status.HTTP_201_CREATED)

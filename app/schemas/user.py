@@ -78,3 +78,19 @@ class UploadFoodRequest(BaseModel):
                 "unit": None  # No unit needed for fruits like banana
             }
         }
+
+# Schema to define the response format for users
+class UserResponseSchema(BaseModel):
+    user_id: str
+    name: str
+    email: str
+    photo: str
+    role: str
+    phone_no: str
+    registration_id: str
+    verified: bool
+    workout_plan: dict
+    diet_plan: dict
+
+    class Config:
+        orm_mode = True
