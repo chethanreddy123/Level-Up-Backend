@@ -1,35 +1,27 @@
-# from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Depends
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Depends
 from firebase_admin import storage
 from datetime import datetime
 import mimetypes
 import logging
-# from typing import Optional
 from uuid import uuid4
-# from app.utilities.error_handler import handle_errors
-# from app.database import WorkoutandDietTracking  # Assuming your MongoDB model is in models
-# from app.utilities.utils import get_current_ist_time  # Assuming you have a utility function for IST time
-# from .auth import oauth2  # Assuming you have an oauth2 dependency for user authentication
+from app import oauth2  # Assuming you have an oauth2 dependency for user authentication
 
-# router = APIRouter()
+# Router initialization
+router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
 
-# Setup logging for better error tracking
+# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-
-def upload_image_to_firebase(file, user_id, food_name) -> str:
+def upload_image_to_firebase(file, user_id, food_name, folder_name) -> str:
     """
-    Uploads an image file to Firebase Storage under the folder structure:
-    'level_up_images/{user_id}/{date}/{food_name}{extension}'.
-    Returns the public URL if the image is uploaded successfully.
-    If the same food image has been uploaded before, it raises an exception
-    with the previous upload timestamp.
+    Uploads an image file to Firebase Storage under a given folder structure.
+    Returns the public URL of the uploaded image.
     """
-    # Extract the content type (MIME type) of the uploaded file
     content_type = file.content_type
+    logger.debug(f"Received file with MIME type: {content_type}")
 
     # Validate that the file is one of the allowed image types
     if content_type not in ALLOWED_IMAGE_TYPES:
@@ -40,11 +32,11 @@ def upload_image_to_firebase(file, user_id, food_name) -> str:
     if not extension:
         raise ValueError("Unsupported file type")
 
-    # Get the current date in the format 'MM-DD-YY'
+    # Format the current date
     current_date = datetime.now().strftime("%d-%m-%y")
 
-    # Define the file path with the folder structure: 'level_up_images/{user_id}/{date}/{food_name}{extension}'
-    file_path = f"level_up_images/{user_id}/{current_date}/{food_name}{extension}"
+    # Define the file path with the folder structure: 'level_up/{folder_name}/{user_id}/{date}/{food_name}{extension}'
+    file_path = f"level_up/{folder_name}/{user_id}/{current_date}/{food_name}{extension}"
 
     try:
         # Initialize Firebase Storage bucket
@@ -59,10 +51,11 @@ def upload_image_to_firebase(file, user_id, food_name) -> str:
         # Return the public URL of the uploaded image
         logger.info(f"Image uploaded successfully. Public URL: {blob.public_url}")
         return blob.public_url
-    
+
     except Exception as e:
         logger.error(f"Error during file upload: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading file to Firebase: {str(e)}")
+
 
 
 

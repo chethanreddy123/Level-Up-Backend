@@ -1,52 +1,147 @@
-# app/routers/food_item.py
-
 from math import ceil
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, status, UploadFile, File
 from bson.objectid import ObjectId
-from typing import List
+from typing import List, Optional
 from loguru import logger
 from pymongo import ReturnDocument
-
 from app.database import FoodItems
 from app.schemas.food_item import FoodItemSchema
 from app.utilities.error_handler import handle_errors
 from .. import oauth2
+from firebase_admin import storage
+import mimetypes
+import uuid
+from datetime import datetime
 
 router = APIRouter()
 
-# Create a new food item
+# Helper function to upload food image to Firebase Storage
+def upload_food_image_to_firebase(file: UploadFile, user_id: str, food_name: str) -> str:
+    """
+    Uploads an image file to Firebase Storage under the path: 
+    level_up/images/food_items/{food_name}_{user_id}_{timestamp}.{extension}.
+    Returns the public URL of the uploaded image.
+    """
+    content_type = file.content_type
+    logger.debug(f"Received file with MIME type: {content_type}")
+
+    # Validate that the file is an allowed image type
+    allowed_image_types = ["image/jpeg", "image/png", "image/jpg"]
+    if content_type not in allowed_image_types:
+        raise ValueError(f"Invalid file type: {content_type}. Only image files are allowed.")
+
+    # Extract the file extension based on the content type
+    extension = mimetypes.guess_extension(content_type)
+    if not extension:
+        raise ValueError("Unsupported file type")
+    
+    file_name = f"{food_name}{extension}"
+
+    # Define the file path in Firebase Storage
+    file_path = f"level_up/images/food_items/{file_name}"
+
+    try:
+        # Initialize Firebase Storage bucket
+        bucket = storage.bucket()
+        blob = bucket.blob(file_path)
+
+        # Upload the new file to Firebase Storage
+        blob.upload_from_file(file.file, content_type=content_type)
+        blob.make_public()  # Make the file publicly accessible (optional)
+
+        # Return the public URL of the uploaded image
+        logger.info(f"Image uploaded successfully. Public URL: {blob.public_url}")
+        return blob.public_url
+
+    except Exception as e:
+        logger.error(f"Error during file upload: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file to Firebase: {str(e)}")
+
+
 @router.post('/food-item', status_code=status.HTTP_201_CREATED)
 async def create_food_item(
-    payload: FoodItemSchema,
-    user_id: str = Depends(oauth2.require_user)
+    food_name: str = Form(...),  # Required field
+    energy_kcal: Optional[str] = Form(None),
+    quantity: Optional[str] = Form(None),
+    units: Optional[str] = Form(None),
+    carbohydrates: Optional[str] = Form(None),
+    protein: Optional[str] = Form(None),
+    fat: Optional[str] = Form(None),
+    fiber: Optional[str] = Form(None),
+    calcium: Optional[str] = Form(None),
+    phosphorous: Optional[str] = Form(None),
+    iron: Optional[str] = Form(None),
+    vitamin_a: Optional[int] = Form(None),
+    vitamin_b1: Optional[str] = Form(None),
+    vitamin_b2: Optional[str] = Form(None),
+    vitamin_b3: Optional[str] = Form(None),
+    vitamin_b6: Optional[str] = Form(None),
+    vitamin_b9: Optional[str] = Form(None),
+    vitamin_c: Optional[str] = Form(None),
+    magnesium: Optional[str] = Form(None),
+    sodium: Optional[str] = Form(None),
+    potassium: Optional[str] = Form(None),
+    food_image: Optional[UploadFile] = File(None),
+    user_id: str = Depends(oauth2.require_user)  # Authenticated user ID
 ):
     """
     Create a new food item entry.
     If a food item with the same name (case-insensitive) already exists, raise a warning.
     """
     with handle_errors():
-        logger.info(f"Creating a new food item: {payload.food_name} by user ID: {user_id}")
+        logger.info(f"Creating a new food item: {food_name} by user ID: {user_id}")
 
         # Check if the food item already exists (case-insensitive)
-        existing_food_item =  FoodItems.find_one(
-            {"food_name": {"$regex": f"^{payload.food_name}$", "$options": "i"}}
+        existing_food_item = FoodItems.find_one(
+            {"food_name": {"$regex": f"^{food_name}$", "$options": "i"}}
         )
-        
+
         if existing_food_item:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"The food item '{payload.food_name.title()}' already exists."
+                detail=f"The food item '{food_name.title()}' already exists."
             )
 
-        # Prepare the food item data from the payload
-        food_item_data = payload.dict()
+        # Prepare the food item data from the form
+        food_item_data = {
+            "food_name": food_name,
+            "energy_kcal": energy_kcal,
+            "quantity": quantity,
+            "units": units,
+            "carbohydrates": carbohydrates,
+            "protein": protein,
+            "fat": fat,
+            "fiber": fiber,
+            "calcium": calcium,
+            "phosphorous": phosphorous,
+            "iron": iron,
+            "vitamin_a": vitamin_a,
+            "vitamin_b1": vitamin_b1,
+            "vitamin_b2": vitamin_b2,
+            "vitamin_b3": vitamin_b3,
+            "vitamin_b6": vitamin_b6,
+            "vitamin_b9": vitamin_b9,
+            "vitamin_c": vitamin_c,
+            "magnesium": magnesium,
+            "sodium": sodium,
+            "potassium": potassium
+        }
+
+        # If a food image is uploaded, upload to Firebase and store the URL
+        if food_image:
+            try:
+                food_image_url = upload_food_image_to_firebase(file=food_image, user_id=user_id, food_name=food_name)
+                food_item_data["food_image_url"] = food_image_url  # Store the image URL in the database
+            except Exception as e:
+                logger.error(f"Failed to upload food image: {str(e)}")
+                raise HTTPException(status_code=500, detail="Food image upload failed")
 
         # Insert the new food item into the FoodItems collection
-        result =  FoodItems.insert_one(food_item_data)
-        
+        result = FoodItems.insert_one(food_item_data)
+
         # Fetch the newly inserted food item, including the inserted _id
-        new_food_item =  FoodItems.find_one({'_id': result.inserted_id})
-        
+        new_food_item = FoodItems.find_one({'_id': result.inserted_id})
+
         # Convert _id from ObjectId to string
         if new_food_item:
             new_food_item['_id'] = str(new_food_item['_id'])
@@ -55,7 +150,7 @@ async def create_food_item(
             "id": new_food_item['_id'],  # Return the food item with its inserted data
             "message": "Food item added successfully!",
         }
-
+    
 
 # Retrieve a single food item by its ID
 @router.get('/food-item/{food_item_id}', response_model=FoodItemSchema)

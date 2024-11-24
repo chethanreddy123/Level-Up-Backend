@@ -58,19 +58,19 @@ class ScreeningFormSchema(BaseModel):
     age: Optional[int] = None
     workout_days_per_week: Optional[int] = None
 
-    # Select Box fields
-    food_preferences: Optional[FoodPreferences] = None
-    skip_meals: Optional[YesNo] = None
-    dine_out_frequency: Optional[str] = None
-    heart_trouble: Optional[YesNo] = None
-    chest_pain: Optional[YesNo] = None
-    injuries: Optional[YesNo] = None
-    committed: Optional[YesNo] = None
-    gap_in_lifting: Optional[YesNo] = None
-    back_or_knees_problem: Optional[YesNo] = None
-    steroids_or_drugs: Optional[YesNo] = None
-    supplements_usage: Optional[YesNo] = None
-    okay_with_six_day_workout: Optional[YesNo] = None
+    # # Select Box fields
+    # food_preferences: Optional[FoodPreferences] = None
+    # skip_meals: Optional[YesNo] = None
+    # dine_out_frequency: Optional[str] = None
+    # heart_trouble: Optional[YesNo] = None
+    # chest_pain: Optional[YesNo] = None
+    # injuries: Optional[YesNo] = None
+    # committed: Optional[YesNo] = None
+    # gap_in_lifting: Optional[YesNo] = None
+    # back_or_knees_problem: Optional[YesNo] = None
+    # steroids_or_drugs: Optional[YesNo] = None
+    # supplements_usage: Optional[YesNo] = None
+    # okay_with_six_day_workout: Optional[YesNo] = None
     
     # Select Box with numerical values (for rating or scale)
     training_intensity: Optional[TrainingIntensity] = None

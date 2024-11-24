@@ -17,6 +17,9 @@ class UserBaseSchema(BaseModel):
     photo: Optional[str] = None
     role: Optional[UserRole] = None
     phone_no: str = None
+    address: str = None
+    slot_preference: str = None
+    previous_gym: str = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     registration_id: Optional[str] = None
@@ -50,6 +53,7 @@ class UserRegistration(BaseModel):
     address: str
     email: EmailStr
     phone_no: str
+    address: str
     previous_gym: str
     slot_preference: str
     created_at: Optional[datetime] = None

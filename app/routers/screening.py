@@ -64,8 +64,10 @@ async def submit_screening_form(
 
         return {"message": "Screening form submitted successfully!"}
 
-@router.get('/screening/details', response_model=ScreeningFormSchema)
-async def get_screening_details(user_id: str , authorize : str = Depends(oauth2.require_user)):
+@router.get('/screening/details/{user_id}', response_model=ScreeningFormSchema)
+async def get_screening_details(
+    user_id: str , 
+    auth_user_id : str = Depends(oauth2.require_user)):
     """
     Retrieve the screening form details of the authenticated user.
     """

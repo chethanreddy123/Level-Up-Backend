@@ -25,7 +25,7 @@ REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 async def create_user(payload: user.CreateUserSchema):
     with handle_errors():
         # Check if user already exists
-        existing_user =  User.find_one({'email': payload.email.lower()})
+        existing_user = User.find_one({'email': payload.email.lower()})
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -40,21 +40,20 @@ async def create_user(payload: user.CreateUserSchema):
             )
 
         # Hash the password
-        payload.password = utils.hash_password(payload.password)
-        del payload.password_confirm
-
-        # Set default role and other fields
-        payload.role = payload.role or 'CUSTOMER'
-        payload.verified = True
-        payload.email = payload.email.lower()
-        payload.created_at = datetime.utcnow()
-        payload.updated_at = payload.created_at
-
-        # Generate Registration ID
-        payload.registration_id =  get_next_registration_id()
+        hashed_password = utils.hash_password(payload.password)
+        
+        # Create user dictionary
+        user_data = payload.dict(exclude_unset=True)  # This ensures that optional fields are included if provided
+        user_data['password'] = hashed_password
+        user_data['role'] = payload.role or 'CUSTOMER'
+        user_data['verified'] = True
+        user_data['email'] = payload.email.lower()
+        user_data['created_at'] = datetime.utcnow()
+        user_data['updated_at'] = user_data['created_at']
+        user_data['registration_id'] = get_next_registration_id()
 
         # Insert the user into the database
-        result =  User.insert_one(payload.dict())
+        result = User.insert_one(user_data)
         if not result.inserted_id:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -62,7 +61,7 @@ async def create_user(payload: user.CreateUserSchema):
             )
 
         # Fetch the newly created user
-        new_user_data =  User.find_one({'_id': result.inserted_id})
+        new_user_data = User.find_one({'_id': result.inserted_id})
         if not new_user_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -73,15 +72,15 @@ async def create_user(payload: user.CreateUserSchema):
         new_user = userResponseEntity(new_user_data)
 
         # Send welcome email for CUSTOMER role
-        if payload.role == 'CUSTOMER':
+        if user_data['role'] == 'CUSTOMER':
             try:
                 await send_email(
                     sender_email="aioverflow.ml@gmail.com",
                     sender_password="tvnt qtww egyq ktes",  # Retrieve from config in production
-                    to_email=payload.email,
+                    to_email=user_data['email'],
                     cc_emails=None,
                     subject="Welcome to Our Gym App!",
-                    message=f"Hi {payload.name},\n\n"
+                    message=f"Hi {user_data['name']},\n\n"
                             f"Thank you for registering with our gym app!\n\n"
                             f"Download the app and start your fitness journey.\n\n"
                             f"Best regards,\nThe Gym Team"

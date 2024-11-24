@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from app.database import GymPlans  # Assuming GymPlans is the MongoDB collection
+from fastapi import APIRouter, Depends, Form, HTTPException, status
+import loguru
+from app.database import GymPlans, User  # Assuming GymPlans is the MongoDB collection
 from app.schemas.subscription_plans import GymPlanSchema, GymPlanUpdateSchema
 from app.utilities.error_handler import handle_errors
 from app import oauth2
@@ -202,3 +203,186 @@ async def get_all_gym_plans(auth_user_id: str = Depends(oauth2.require_user)):
             plan['_id'] = str(plan['_id'])
         
         return gym_plans
+    
+
+
+@router.post('/gym-plan/add_user', status_code=status.HTTP_201_CREATED)
+async def add_gym_plan(
+    user_id: str = Form(..., description="User ID of the user"),
+    subscription_plan_id: str = Form(..., description="ID of the gym subscription plan from GymPlans collection"),
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Add or update the gym subscription plan for a user.
+    The plan is fetched from the GymPlans collection using subscription_plan_id.
+    If the user already has a subscription plan, a warning is raised.
+    """
+    with handle_errors():
+        # Check if user exists
+        user = User.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Check if the user already has a subscription plan
+        if "subscription_plan" in user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already has a subscription plan"
+            )
+
+        # Fetch the gym plan from the GymPlans collection
+        gym_plan = GymPlans.find_one({"_id": ObjectId(subscription_plan_id)})
+
+        if not gym_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subscription plan with ID {subscription_plan_id} not found in GymPlans"
+            )
+
+        # Prepare the subscription plan to add to the user
+        subscription_plan = {
+            "plan_name": gym_plan["plan_name"],
+            "duration": gym_plan["duration"],
+            "price": gym_plan["price"]
+        }
+
+        # Add subscription_plan to the user document
+        result = User.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"subscription_plan": subscription_plan}}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to add subscription plan"
+            )
+
+        # Log the addition of the gym plan
+        loguru.logger.info(f"User {user_id} subscribed to {gym_plan['plan_name']} for {gym_plan['duration']} at {gym_plan['price']}.")
+
+        # Return a success message
+        return {
+            "status": "success",
+            "message": f"Subscription plan '{gym_plan['plan_name']}' added for user {user_id}.",
+            "user_id": user_id,
+            "subscription_plan": subscription_plan
+        }
+    
+@router.delete('/gym-plan/remove_user/{user_id}', status_code=status.HTTP_200_OK)
+async def delete_gym_plan(
+    user_id: str,  # The user_id from query parameters
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Delete the gym subscription plan for the given user_id.
+    This removes the 'subscription_plan' field from the user's profile.
+    """
+    with handle_errors():
+        # Check if user exists
+        user = User.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+        
+        # Check if the user has a subscription plan
+        if "subscription_plan" not in user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User does not have a subscription plan"
+            )
+
+        # Remove the subscription plan from the user document
+        result = User.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$unset": {"subscription_plan": ""}}  # Unset the subscription_plan field
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete subscription plan"
+            )
+
+        # Log the deletion
+        loguru.logger.info(f"Subscription plan deleted for user {user_id}.")
+
+        # Return success message
+        return {
+            "status": "success",
+            "message": f"Subscription plan deleted for user {user_id}."
+        }
+    
+@router.put('/update-gym-plan/{user_id}/{plan_id}', status_code=status.HTTP_200_OK)
+async def update_gym_plan(
+    user_id: str,  # User ID as a path parameter
+    plan_id: str,  # Plan ID as a path parameter
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Update the gym subscription plan for the given user_id if the current plan is different from the new plan_id.
+    Fetches the plan from GymPlans collection and updates the user's profile.
+    """
+    with handle_errors():
+        # Fetch the new gym plan from the GymPlans collection
+        gym_plan = GymPlans.find_one({"_id": ObjectId(plan_id)})
+        
+        if not gym_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Gym plan with ID {plan_id} not found"
+            )
+        
+        # Check if the user exists
+        user = User.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Check if the user already has a subscription plan
+        if "subscription_plan" in user:
+            # Compare the existing plan with the new plan
+            existing_plan = user["subscription_plan"]
+            if existing_plan["plan_name"] == gym_plan["plan_name"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User already has this subscription plan"
+                )
+        
+        # Prepare the new subscription plan data
+        updated_plan = {
+            "plan_name": gym_plan.get("plan_name"),
+            "duration": gym_plan.get("duration"),
+            "price": gym_plan.get("price"),
+        }
+
+        # Update the user's subscription_plan with the new plan
+        result = User.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"subscription_plan": updated_plan}}  # Set the new subscription_plan field
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update subscription plan"
+            )
+
+        # Log the update
+        loguru.logger.info(f"Subscription plan updated for user {user_id} to plan {plan_id}.")
+
+        # Return success message
+        return {
+            "status": "success",
+            "message": f"Subscription plan updated for user {user_id}."
+        }

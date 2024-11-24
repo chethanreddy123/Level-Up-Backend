@@ -18,6 +18,8 @@ from pymongo.errors import PyMongoError
 
 router = APIRouter()
 
+
+
 @router.post('/diet-plan', status_code=status.HTTP_201_CREATED, response_model=DietPlanResponseSchema)
 async def create_diet_plan(
     payload: DietPlan = Body(...),  # Explicitly specify that 'payload' is the request body
@@ -340,7 +342,7 @@ async def upload_diet_logs(
                 logger.debug(f"Received image: {image.filename}, Content type: {image.content_type}")
 
                 # Upload image to Firebase and get the URL
-                image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name)
+                image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name, folder_name='diet_log_images')
                 logger.debug(f"Image uploaded successfully, URL: {image_url}")
 
             except Exception as e:
@@ -405,101 +407,6 @@ async def upload_diet_logs(
             # If the user record doesn't exist, handle this case (optional)
             raise HTTPException(status_code=404, detail="User not found")
 
-
-# @router.post('/diet-plan/upload_diet_logs')
-# async def upload_diet_logs(
-#     food_name: str = Form(...),  # Required form field
-#     quantity: float = Form(...),  # Required quantity field
-#     units: Optional[str] = Form(None),  # Optional units field
-#     image: Optional[UploadFile] = File(None),  # Optional image file
-#     user_id: str = Depends(oauth2.require_user)  # Authenticated user ID
-# ):
-#     with handle_errors():
-#         user_id = str(user_id)
-
-#         # Get the formatted date and time in IST
-#         formatted_date, formatted_time = get_current_ist_time()
-
-#         # Check if the food_name already exists for the given date and user in MongoDB
-#         existing_record = WorkoutandDietTracking.find_one(
-#             {"_id": user_id, f"{formatted_date}.diet_logs": {"$elemMatch": {"food_name": food_name}}}
-#         )
-#         if existing_record:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail=f"The info about {food_name.title()} has already been uploaded for {formatted_date}."
-#             )
-
-#         # Initialize image_url variable to None
-#         image_url = None
-#         if image:
-#             try:
-#                 # Debugging: Log file attributes to ensure it's received correctly
-#                 logger.debug(f"Received image: {image.filename}, Content type: {image.content_type}")
-
-#                 # Upload image to Firebase and get the URL
-#                 image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name)
-#                 logger.debug(f"Image uploaded successfully, URL: {image_url}")
-
-#             except Exception as e:
-#                 logger.error(f"Failed to upload image to Firebase: {str(e)}")
-#                 raise HTTPException(status_code=500, detail="Image upload failed")
-
-#         # Create the new diet log entry
-#         new_diet_log = {
-#             "food_name": food_name,
-#             "quantity": quantity,
-#             "units": units,
-#             "image_url": image_url,  # Can be None or a placeholder
-#             "uploaded_time": formatted_time
-#         }
-
-#         # Find the existing user record
-#         existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
-
-#         if existing_record:
-#             # Check if the specific date field (e.g., '21-11-2024') exists
-#             if formatted_date in existing_record:
-#                 # If the date exists, append the new diet log to that date's diet_logs array
-#                 try:
-#                     WorkoutandDietTracking.update_one(
-#                         {"_id": user_id},
-#                         {
-#                             "$push": {f"{formatted_date}.diet_logs": new_diet_log}
-#                         }
-#                     )
-#                     return {
-#                         "status": "success",
-#                         "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
-#                     }
-#                 except Exception as e:
-#                     logger.error(f"Failed to update diet logs for {formatted_date}: {str(e)}")
-#                     raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-#             else:
-#                 # If the date does not exist, create the new date field and initialize diet_logs
-#                 try:
-#                     WorkoutandDietTracking.update_one(
-#                         {"_id": user_id},
-#                         {
-#                             "$set": {  # Use $set to create a new date field if it doesn't exist
-#                                 f"{formatted_date}": {
-#                                     "workout_logs": [],  # Empty workout_logs for the new date
-#                                     "diet_logs": [new_diet_log]  # Add the new diet log for today
-#                                 }
-#                             }
-#                         }
-#                     )
-#                     return {
-#                         "status": "success",
-#                         "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!"
-#                     }
-#                 except Exception as e:
-#                     logger.error(f"Failed to set diet logs for {formatted_date}: {str(e)}")
-#                     raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-#         else:
-#             # If the user record doesn't exist, handle this case (optional)
-#             raise HTTPException(status_code=404, detail="User not found")
 
 
 # Route to display the diet details uploaded by the user to the admin (trainer)
@@ -571,112 +478,41 @@ async def get_diet_logs(
             "diet_logs": grouped_diet_logs
         }
     
-# Ignore these
 
-# @router.post('/dump-slots', status_code=status.HTTP_201_CREATED)
-# async def dump_slot_info(payload: dict = Body(...)):
-#     """
-#     Dump the slot information into UserSlots collection. This is to be used only once.
-#     """
-#     # Log the slot info creation request
-#     logger.info("Dumping slot information into UserSlots collection")
-    
-#     with handle_errors():
-#         # Add ObjectId as the document's _id
-#         payload["_id"] = ObjectId()
-        
-#         # Check if the slot information already exists in UserSlots by slot name
-#         existing_slots =  UserSlots.find_one({"slot_name": payload["slot_name"]})
-#         if existing_slots:
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="Slot information already exists."
-#             )
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
 
-#         # Insert the slot information into the UserSlots collection
-#         result =  UserSlots.insert_one(payload)
+@router.post("/upload-image/")
+async def upload_image(file: UploadFile = File(None)):
+    """
+    Upload an image to Firebase Storage.
+    """
+    content_type = file.content_type
 
-#         if result.inserted_id:
-#             return {"message": "Slot information successfully dumped."}
-#         else:
-#             raise HTTPException(
-#                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#                 detail="Failed to dump slot information."
-            # )
+    # Validate file type
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only image files are allowed.")
 
-# # Retrieve all diet plans for a user
-# @router.get('/diet-plans', response_model=List[DietPlanResponseSchema])
-# async def get_all_diet_plans(
-#     user_id: str = Query(..., description="User ID to get diet plans for")
-# ):
-#     """
-#     Retrieve all diet plans for a specific user.
-#     """
-#     with handle_errors():
-#         try:
-#             user_id = ObjectId(user_id)
-#         except Exception:
-#             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format.")
+    # Extract the file extension
+    extension = mimetypes.guess_extension(content_type)
+    if not extension:
+        raise HTTPException(status_code=400, detail="Unsupported file type.")
 
-#         diet_plans = list(DietPlans.find({"user_id": str(user_id)}))
-#         return [DietPlanResponseSchema(id=str(dp["_id"]), **dp) for dp in diet_plans]
+    # Define the file path (you can customize this based on your needs)
+    file_name = f"level_up/images/{file.filename}"
 
+    try:
+        # Upload the image to Firebase Storage
+        bucket = storage.bucket()
+        blob = bucket.blob(file_name)
 
-# # Update a diet plan
-# @router.put('/diet-plan/{diet_plan_id}', response_model=DietPlanResponseSchema)
-# async def update_diet_plan(
-#     diet_plan_id: str,
-#     payload: DietPlanSchema,
-#     user_id: str = Depends(oauth2.require_user)
-# ):
-#     """
-#     Update an existing diet plan for a specific user.
-#     """
-#     with handle_errors():
-#         try:
-#             diet_plan_obj_id = ObjectId(diet_plan_id)
-#         except Exception:
-#             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid diet plan ID format.")
+        # Upload the file
+        blob.upload_from_file(file.file, content_type=content_type)
+        blob.make_public()  # Make the file publicly accessible (optional)
 
-#         # Remove None fields from the update payload
-#         update_data = {k: v for k, v in payload.dict().items() if v is not None}
+        # Return the public URL of the uploaded image
+        logger.info(f"Image uploaded successfully: {blob.public_url}")
+        return {"url": blob.public_url}
 
-#         # Update diet plan in the collection
-#         update_result = DietPlans.find_one_and_update(
-#             {"_id": diet_plan_obj_id, "user_id": user_id},
-#             {"$set": update_data},
-#             return_document=True
-#         )
-
-#         if not update_result:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail="Diet plan not found."
-#             )
-
-#         return DietPlanResponseSchema(id=str(update_result["_id"]), **update_result)
-
-
-# # Delete a diet plan
-# @router.delete('/diet-plan/{diet_plan_id}', status_code=status.HTTP_204_NO_CONTENT)
-# async def delete_diet_plan(
-#     diet_plan_id: str,
-#     user_id: str = Depends(oauth2.require_user)
-# ):
-#     """
-#     Delete a diet plan by its ID.
-#     """
-#     with handle_errors():
-#         try:
-#             diet_plan_obj_id = ObjectId(diet_plan_id)
-#         except Exception:
-#             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid diet plan ID format.")
-
-#         delete_result = DietPlans.delete_one({"_id": diet_plan_obj_id, "user_id": user_id})
-#         if delete_result.deleted_count == 0:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail="Diet plan not found."
-#             )
-
-#         return {"message": "Diet plan deleted successfully!"}
+    except Exception as e:
+        logger.error(f"Error uploading image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")

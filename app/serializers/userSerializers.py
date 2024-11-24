@@ -12,19 +12,21 @@ def userEntity(user) -> dict:
     }
 
 
-def userResponseEntity(user) -> dict:
+def userResponseEntity(user):
     return {
         "id": str(user["_id"]),
         "name": user["name"],
         "email": user["email"],
-        "role": user["role"],
-        "photo": user["photo"],
-        "created_at": user["created_at"],
-        "updated_at": user["updated_at"],
-        "registration_id": user["registration_id"],
-        "phone_no": user["phone_no"]
+        "photo": user.get("photo"),  # Use .get() to avoid KeyError if the field is missing
+        "role": user.get("role"),
+        "phone_no": user.get("phone_no"),
+        "address": user.get("address"),
+        "slot_preference": user.get("slot_preference"),
+        "previous_gym": user.get("previous_gym"),
+        "created_at": user.get("created_at"),
+        "updated_at": user.get("updated_at"),
+        "registration_id": user.get("registration_id")
     }
-
 
 def embeddedUserResponse(user) -> dict:
     return {
