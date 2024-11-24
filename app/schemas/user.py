@@ -23,6 +23,9 @@ class UserBaseSchema(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     registration_id: Optional[str] = None
+    previous_gym: str
+    slot_preference: str
+    address: str
 
     class Config:
         orm_mode = True
