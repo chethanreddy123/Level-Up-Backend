@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import initialize_database
-from app.utilities import firebase_upload
+from app.utilities import google_cloud_upload
 from config import settings
 from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management, subscription_plans, user_attendance 
 app = FastAPI()

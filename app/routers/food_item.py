@@ -7,6 +7,7 @@ from pymongo import ReturnDocument
 from app.database import FoodItems
 from app.schemas.food_item import FoodItemSchema
 from app.utilities.error_handler import handle_errors
+from app.utilities.google_cloud_upload import upload_food_item_image
 from .. import oauth2
 from firebase_admin import storage
 import mimetypes
@@ -81,7 +82,7 @@ async def create_food_item(
     magnesium: Optional[str] = Form(None),
     sodium: Optional[str] = Form(None),
     potassium: Optional[str] = Form(None),
-    food_image: Optional[UploadFile] = File(None),
+    food_image: Optional[UploadFile] = File(None),  # File upload field
     user_id: str = Depends(oauth2.require_user)  # Authenticated user ID
 ):
     """
@@ -130,7 +131,7 @@ async def create_food_item(
         # If a food image is uploaded, upload to Firebase and store the URL
         if food_image:
             try:
-                food_image_url = upload_food_image_to_firebase(file=food_image, user_id=user_id, food_name=food_name)
+                food_image_url = upload_food_item_image(file=food_image, food_name=food_name)
                 food_item_data["food_image_url"] = food_image_url  # Store the image URL in the database
             except Exception as e:
                 logger.error(f"Failed to upload food image: {str(e)}")

@@ -1,28 +1,30 @@
+from fastapi import File, UploadFile
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 
 class FoodItemSchema(BaseModel):
     food_name: str  # Required field
-    energy_kcal: Optional[str] = Field(None, description="Energy value in kcal.")
-    quantity: Optional[str] = Field(None, description="Quantity of the food item.")
-    units: Optional[str] = Field(None, description="Units in which it is measured.")
-    carbohydrates: Optional[str] = Field(None, description="Carbohydrates in grams.")
-    protein: Optional[str] = Field(None, description="Protein in grams.")
-    fat: Optional[str] = Field(None, description="Fat in grams.")
-    fiber: Optional[str] = Field(None, description="Fiber in grams.")
-    calcium: Optional[str] = Field(None, description="Calcium in mg.")
-    phosphorous: Optional[str] = Field(None, description="Phosphorous in mg.")
-    iron: Optional[str] = Field(None, description="Iron in mg.")
-    vitamin_a: Optional[str] = Field(None, description="Vitamin A in µg.")
-    vitamin_b1: Optional[str] = Field(None, description="Vitamin B1 in mg.")
-    vitamin_b2: Optional[str] = Field(None, description="Vitamin B2 in mg.")
-    vitamin_b3: Optional[str] = Field(None, description="Vitamin B3 in mg.")
-    vitamin_b9: Optional[str] = Field(None, description="Vitamin B9 in mg.")
-    vitamin_c: Optional[str] = Field(None, description="Vitamin C in mg.")
-    magnesium: Optional[str] = Field(None, description="Magnesium in mg.")
-    sodium: Optional[str] = Field(None, description="Sodium in mg.")
-    potassium: Optional[str] = Field(None, description="Potassium in mg.")
-
+    energy_kcal: Optional[str] = None
+    quantity: Optional[str] = None
+    units: Optional[str] = None
+    carbohydrates: Optional[str] = None
+    protein: Optional[str] = None
+    fat: Optional[str] = None
+    fiber: Optional[str] = None
+    calcium: Optional[str] = None
+    phosphorous: Optional[str] = None
+    iron: Optional[str] = None
+    vitamin_a: Optional[int] = None
+    vitamin_b1: Optional[str] = None
+    vitamin_b2: Optional[str] = None
+    vitamin_b3: Optional[str] = None
+    vitamin_b6: Optional[str] = None
+    vitamin_b9: Optional[str] = None
+    vitamin_c: Optional[str] = None
+    magnesium: Optional[str] = None
+    sodium: Optional[str] = None
+    potassium: Optional[str] = None
+    food_image_url: Optional[str] = None,
     class Config:
         orm_mode = True
 

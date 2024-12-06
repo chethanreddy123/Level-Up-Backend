@@ -46,3 +46,4 @@ loguru==0.6.0
 pytz
 firebase-admin
 motor
+google-cloud-storage

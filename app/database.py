@@ -1,14 +1,16 @@
+import os
 from pymongo import MongoClient
-from firebase_admin import credentials, initialize_app, storage
 from config import settings
+from google.cloud import storage
+from google.oauth2 import service_account
 import logging
 from pymongo import ASCENDING
 
-# Set up logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# MongoDB Connection
+
 client = MongoClient(settings.DATABASE_URL, serverSelectionTimeoutMS=5000)
 
 try:
@@ -20,7 +22,7 @@ except Exception as e:
 # Select the database
 db = client[settings.MONGO_INITDB_DATABASE]
 
-# Define collections for external use
+# Collections
 User = db.users
 Registrations = db.registrations
 Customers = db.customers
@@ -35,19 +37,38 @@ UserAttendance = db.user_attendance
 WorkoutandDietTracking = db.workout_and_diet_tracking
 
 
+## User INDEX    
 
-# Firebase Initialization (Synchronous)
-def initialize_firebase():
+# Create index for User database for faster accessing
+User.create_index([('role', 1)])
+# Create indexes for 'created_at' to speed up sorting 
+User.create_index([('created_at', 1)])  # Sorting by created_at (ascending)
+
+
+# Set the path to your service account key file directly here
+SERVICE_ACCOUNT_KEY_PATH = "serviceAccountKey.json"  # Update this to your actual path
+GCS_BUCKET_NAME = "staging.medigenai-94061.appspot.com"  # Update with your actual bucket name
+
+
+# Initialize Google Cloud Storage Client
+def initialize_google_cloud():
     try:
-        cred = credentials.Certificate(settings.FIREBASE_CONFIG_PATH)
-        initialize_app(cred, {
-            'storageBucket': 'medigenai-94061.appspot.com'
-        })
-        logger.info("Connected to Firebase Storage successfully.")
+        # Load credentials from the service account key file
+        credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_KEY_PATH)
+
+        # Initialize the Google Cloud Storage client with the credentials
+        client = storage.Client(credentials=credentials)
+        
+        # Get the bucket using the bucket name
+        bucket = client.get_bucket(GCS_BUCKET_NAME)
+        
+        logger.info("Successfully connected to Google Cloud Storage.")
+        return bucket
     except Exception as e:
-        logger.error(f"Failed to connect to Firebase: {e}")
+        logger.error(f"Failed to connect to Google Cloud Storage: {e}")
+        return None
 
 # Function to initialize the database (synchronous)
 def initialize_database():
     # Initialize Firebase (this is synchronous)
-    initialize_firebase()
+    initialize_google_cloud()

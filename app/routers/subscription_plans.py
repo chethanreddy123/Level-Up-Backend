@@ -1,48 +1,69 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 import loguru
 from app.database import GymPlans, User  # Assuming GymPlans is the MongoDB collection
 from app.schemas.subscription_plans import GymPlanSchema, GymPlanUpdateSchema
 from app.utilities.error_handler import handle_errors
 from app import oauth2
 from bson import ObjectId
+from app.utilities.google_cloud_upload import upload_gym_plan_image
 from app.utilities.utils import get_current_ist_time
 from loguru import logger
 
 router = APIRouter()
 
-# Create a new gym plan
 @router.post('/gym-plan', status_code=status.HTTP_201_CREATED)
 async def create_gym_plan(
-    payload: GymPlanSchema,
-    user_id: str = Depends(oauth2.require_user)  # Optional, depending on your authentication
+    plan_name: str = Form(...),  # Required field for gym plan name
+    duration: int = Form(...),   # Duration should be an integer (1, 3, 6, or 12)
+    price: float = Form(...),    # Price should be a float
+    image: UploadFile = File(None),  # Optional image upload
+    user_id: str = Depends(oauth2.require_user)  # Assuming you have an oauth2 dependency for user authentication
 ):
     """
     Create a new gym subscription plan.
     Ensures the plan name is unique (case-insensitive).
     """
-    with handle_errors():
-        # Log the action of creating a new plan
-        logger.info(f"Creating a new gym plan: {payload.plan_name} by user ID: {user_id}")
+    # Allowed values for duration
+    allowed_durations = {1, 3, 6, 12}
 
+    # Validate that the duration is one of the allowed values
+    if duration not in allowed_durations:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid duration. Allowed values are 1, 3, 6, or 12 months."
+        )
+
+    # Log the action of creating a new plan
+    logger.info(f"Creating a new gym plan: {plan_name} by user ID: {user_id}")
+
+    try:
         # Check if the gym plan already exists (case-insensitive)
         existing_plan = GymPlans.find_one(
-            {"plan_name": {"$regex": f"^{payload.plan_name}$", "$options": "i"}}
+            {"plan_name": {"$regex": f"^{plan_name}$", "$options": "i"}}
         )
         
         if existing_plan:
+            logger.warning(f"Gym plan '{plan_name}' already exists. User is attempting to create a duplicate.")
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"The gym plan '{payload.plan_name.title()}' already exists."
+                detail=f"The gym plan '{plan_name.title()}' already exists. Please change the plan name or update the existing plan."
             )
 
         # Prepare the gym plan data
-        gym_plan_data = payload.dict()
+        gym_plan_data = {
+            "plan_name": plan_name,
+            "duration": f"{duration} month" if duration == 1 else f"{duration} months",  # Format duration as a string
+            "price": price,
+        }
 
-        # Convert the duration to string format (e.g., "3 months")
-        if gym_plan_data['duration'] == 1:
-            gym_plan_data['duration'] = "1 month"
-        else:
-            gym_plan_data['duration'] = f"{gym_plan_data['duration']} months"
+        # Optional: Upload the image if provided
+        if image:
+            try:
+                image_url = upload_gym_plan_image(file=image, plan_name=plan_name)
+                gym_plan_data["image_url"] = image_url  # Store the image URL
+            except Exception as e:
+                logger.error(f"Error uploading image for gym plan '{plan_name}': {str(e)}")
+                raise HTTPException(status_code=500, detail="Failed to upload image for gym plan.")
 
         # Insert the new gym plan into the GymPlans collection
         result = GymPlans.insert_one(gym_plan_data)
@@ -50,14 +71,27 @@ async def create_gym_plan(
         # Fetch the newly inserted gym plan, including the inserted _id
         new_gym_plan = GymPlans.find_one({'_id': result.inserted_id})
 
+        if not new_gym_plan:
+            logger.error(f"Failed to retrieve the gym plan after insertion for {plan_name}")
+            raise HTTPException(status_code=500, detail="Failed to create gym plan: Unable to retrieve plan.")
+
         # Convert _id from ObjectId to string
-        if new_gym_plan:
-            new_gym_plan['_id'] = str(new_gym_plan['_id'])
+        new_gym_plan['_id'] = str(new_gym_plan['_id'])
 
         return {
             "id": new_gym_plan['_id'],  # Return the new gym plan with its inserted data
             "message": "Gym plan added successfully!"
         }
+
+    except HTTPException as e:
+        # Handle known exceptions
+        logger.error(f"HTTPException: {str(e.detail)}")
+        raise e
+
+    except Exception as e:
+        # Catch other errors
+        logger.error(f"Error creating gym plan '{plan_name}': {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create gym plan: {str(e)}")
 
 
 # Get a gym plan by ID

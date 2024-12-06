@@ -1,62 +1,135 @@
 from fastapi import APIRouter, HTTPException, Form, UploadFile, File, Depends
-from firebase_admin import storage
+from google.cloud import storage
 from datetime import datetime
 import mimetypes
 import logging
 from uuid import uuid4
-from app import oauth2  # Assuming you have an oauth2 dependency for user authentication
+from app import oauth2  
+from app.database import initialize_google_cloud  
 
-# Router initialization
+
 router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+import logging
+
+# Configure logging to display debug messages
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the log level to DEBUG
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Custom log format
+    handlers=[
+        logging.StreamHandler()  # Output logs to the console (terminal)
+    ]
+)
+
+# Example usage
 logger = logging.getLogger(__name__)
 
-def upload_image_to_firebase(file, user_id, food_name, folder_name) -> str:
+
+def upload_image_to_gcs(file, folder_name, file_name) -> str:
     """
-    Uploads an image file to Firebase Storage under a given folder structure.
+    Base function to upload an image file to Google Cloud Storage under a given folder structure.
     Returns the public URL of the uploaded image.
     """
-    content_type = file.content_type
-    logger.debug(f"Received file with MIME type: {content_type}")
-
-    # Validate that the file is one of the allowed image types
-    if content_type not in ALLOWED_IMAGE_TYPES:
-        raise ValueError(f"Invalid file type: {content_type}. Only image files are allowed.")
-
-    # Extract the file extension based on the content type
-    extension = mimetypes.guess_extension(content_type)
-    if not extension:
-        raise ValueError("Unsupported file type")
-
-    # Format the current date
-    current_date = datetime.now().strftime("%d-%m-%y")
-
-    # Define the file path with the folder structure: 'level_up/{folder_name}/{user_id}/{date}/{food_name}{extension}'
-    file_path = f"level_up/{folder_name}/{user_id}/{current_date}/{food_name}{extension}"
-
     try:
-        # Initialize Firebase Storage bucket
-        bucket = storage.bucket()
-        blob = bucket.blob(file_path)
+        # Ensure file content type is valid
+        content_type = file.content_type
+        logger.debug(f"Received file: {file.filename}, Content type: {content_type}")
 
-        # Upload the new file to Firebase Storage
-        logger.debug(f"Uploading file: {file.filename}")
+        # Validate that the file is one of the allowed image types
+        if content_type not in ALLOWED_IMAGE_TYPES:
+            raise ValueError(f"Invalid file type: {content_type}. Only image files are allowed.")
+
+        # Extract the file extension based on content type
+        extension = mimetypes.guess_extension(content_type) or ".jpg"  # Default to .jpg if extension is None
+        if not extension:
+            raise ValueError("Unsupported file type")
+
+        # Construct the file path
+        file_path = f"{folder_name}/{file_name}{extension}"
+
+        # Initialize Google Cloud Storage bucket
+        bucket = initialize_google_cloud()  # Initialize GCS
+        if not bucket:
+            raise ValueError("Google Cloud Storage bucket initialization failed.")
+        
+        # Upload the file to the bucket
+        blob = bucket.blob(file_path)
+        logger.debug(f"Uploading file: {file.filename} to GCS at path: {file_path}")
+        
+        # Reset the file pointer in case it's been read already
+        file.file.seek(0)
+
+        # Upload the file from the stream
         blob.upload_from_file(file.file, content_type=content_type)
-        blob.make_public()
+        blob.make_public()  # Make the file public
 
         # Return the public URL of the uploaded image
-        logger.info(f"Image uploaded successfully. Public URL: {blob.public_url}")
-        return blob.public_url
+        image_url = blob.public_url
+        logger.info(f"Image uploaded successfully. Public URL: {image_url}")
+        return image_url
 
     except Exception as e:
         logger.error(f"Error during file upload: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error uploading file to Firebase: {str(e)}")
+        raise Exception(f"Error uploading file to Google Cloud Storage: {str(e)}")
 
 
+
+def upload_diet_log_image(file, user_id, food_name) -> str:
+    """
+    Upload a diet log image by the User to Google Cloud Storage.
+    The folder structure will be: 'level_up/diet_logs/{user_id}/{date}/{food_name}{extension}'.
+    """
+    # Format the current date for the folder structure
+    current_date = datetime.now().strftime("%d-%m-%y")
+    folder_name = f"level_up/user_images/{user_id}/diet_logs/{current_date}"  # Folder for diet logs, user-specific
+    return upload_image_to_gcs(file, folder_name, food_name)
+
+
+def upload_exercise_image(file, exercise_name) -> str:
+    """
+    Upload an exercise image to Google Cloud Storage.
+    The folder structure will be: 'level_up/exercises/{exercise_name}{extension}'.
+    """
+    folder_name = "exercises"  # Folder for exercise images
+    return upload_image_to_gcs(file, folder_name, exercise_name)
+
+
+def upload_food_item_image(file, food_name) -> str:
+    """
+    Upload a food item image to Google Cloud Storage.
+    The folder structure will be: 'level_up/food_items/{food_name}{extension}'.
+    """
+    folder_name = "level_up/food_items"  # Folder for food item images
+    return upload_image_to_gcs(file, folder_name, food_name)
+
+
+def upload_profile_image(file, user_id, file_name) -> str:
+    """
+    Upload the profile photo by the User and store it in the Google Cloud Storage.
+    The folder structure will be: 'level_up/profile_photos/{user_id}/photo{extension}'.
+    """
+    folder_name = f"level_up/user_images/{user_id}/profile_photo"
+    return upload_image_to_gcs(file, folder_name, file_name )
+
+
+def upload_gym_plan_image(file, plan_name) -> str:
+    """
+    Upload the Gym Plan photo by the ADMIN/TRAINER and store it in the Google Cloud Storage.
+    The folder structure will be: 'level_up/subscription_plan_images/{plan_name}{extension}'.
+    """
+    folder_name = "level_up/subscription_plan_images"
+    return upload_image_to_gcs(file, folder_name, plan_name )
+
+
+def upload_weight_image(file: UploadFile, user_id: str, file_name: str) -> str:
+    """
+    Upload the weight image to the Google Cloud Storage in the path:
+    level_up/user_images/{user_id}/weight_track/{file_name}
+    """
+    folder_name = f"level_up/user_images/{user_id}/weight_track"
+    return upload_image_to_gcs(file, folder_name, file_name)
 
 
 # @router.post('/diet-plan/upload_diet_log')

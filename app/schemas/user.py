@@ -2,7 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, constr, Field
 from typing import Optional
 from enum import Enum
-
+from app.utilities.utils import get_current_ist_time
 
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
@@ -30,11 +30,11 @@ class UserBaseSchema(BaseModel):
     class Config:
         orm_mode = True
 
-
 class CreateUserSchema(UserBaseSchema):
     password: constr(min_length=8)
     password_confirm: str
     verified: bool = False
+
 
 
 class LoginUserSchema(BaseModel):
@@ -42,34 +42,35 @@ class LoginUserSchema(BaseModel):
     password: constr(min_length=8)
 
 
+
 class UserResponseSchema(UserBaseSchema):
     id: str
-
 
 class UserResponse(BaseModel):
     status: str
     user: UserResponseSchema
 
 
-class UserRegistration(BaseModel):
-    name: str
-    address: str
-    email: EmailStr
-    phone_no: str
-    address: str
-    previous_gym: str
-    slot_preference: str
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+# class UserRegistration(BaseModel):
+#     name: str
+#     address: str
+#     email: EmailStr
+#     phone_no: str
+#     address: str
+#     previous_gym: str
+#     slot_preference: str
+#     created_at: Optional[datetime] = None
+#     updated_at: Optional[datetime] = None
+#     current_date, current_time = get_current_ist_time()
+#     class Config:
+#         orm_mode = True
+    
+#     def set_created_timestamp(self):
+#         self.created_at = self.current_date
 
-    class Config:
-        orm_mode = True
+#     def set_updated_timestamp(self):
+#         self.updated_at = self.current_time
 
-    def set_created_timestamp(self):
-        self.created_at = datetime.utcnow()
-
-    def set_updated_timestamp(self):
-        self.updated_at = datetime.utcnow()
 
 # To upload user diet logs in mongodb
 class UploadFoodRequest(BaseModel):

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from bson.objectid import ObjectId
 from loguru import logger
 from app.serializers.userSerializers import userEntity
-from .database import User
+from app.database import User
 from config import settings
 
 
@@ -75,7 +75,7 @@ async def require_user(Authorize: AuthJWT = Depends()):
         # Retrieve the user ID from the JWT token's subject (sub)
         user_id = Authorize.get_jwt_subject()
         
-        # Fetch the user document using the user_id asynchronously
+        # Fetch the user document using the user_id synchronously
         db_user =  User.find_one({'_id': ObjectId(str(user_id))})
         user = userEntity(db_user) if db_user else None
 

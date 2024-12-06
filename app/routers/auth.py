@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
-from fastapi import APIRouter, Response, status, Depends, HTTPException
+from fastapi import APIRouter, File, Form, Response, UploadFile, status, Depends, HTTPException
 import loguru
 
 from app.utilities.error_handler import handle_errors
 from app.utilities.email_services import send_email
-from app.utilities.utils import get_next_registration_id
+from app.utilities.google_cloud_upload import upload_profile_image
+from app.utilities.utils import get_next_registration_id, get_current_ist_time
 
 from app import oauth2
 from app.database import  User
@@ -22,10 +23,25 @@ REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 
 
 @router.post('/register', status_code=status.HTTP_201_CREATED, response_model=user.UserResponse)
-async def create_user(payload: user.CreateUserSchema):
+async def create_user(
+    name: str = Form(...),  # Required field for user's name
+    email: str = Form(...),  # Required field for user's email
+    role: user.UserRole = Form(None),  # Optional field, defaults to 'None'. Role must be one of UserRole if provided
+    phone_no: str = Form(...),  # Phone number
+    address: str = Form(...),  # Address
+    slot_preference: str = Form(...),  # Slot preference
+    previous_gym: str = Form(...),  # Previous gym experience
+    password: str = Form(...),  # Password
+    password_confirm: str = Form(...),  # Password confirmation
+    verified: bool = Form(False),  # Verification status, defaults to False
+):
+    """
+    Create a new user.
+    Ensures password confirmation and optional file upload for the user's profile photo.
+    """
     with handle_errors():
-        # Check if user already exists
-        existing_user = User.find_one({'email': payload.email.lower()})
+        # Check if the email already exists
+        existing_user = User.find_one({'email': email.lower()})
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -33,26 +49,37 @@ async def create_user(payload: user.CreateUserSchema):
             )
 
         # Compare password and password_confirm
-        if payload.password != payload.password_confirm:
+        if password != password_confirm:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail='Passwords do not match'
             )
 
         # Hash the password
-        hashed_password = utils.hash_password(payload.password)
+        hashed_password = utils.hash_password(password)
         
-        # Create user dictionary
-        user_data = payload.dict(exclude_unset=True)  # This ensures that optional fields are included if provided
-        user_data['password'] = hashed_password
-        user_data['role'] = payload.role or 'CUSTOMER'
-        user_data['verified'] = True
-        user_data['email'] = payload.email.lower()
-        user_data['created_at'] = datetime.utcnow()
-        user_data['updated_at'] = user_data['created_at']
-        user_data['registration_id'] = get_next_registration_id()
+        # If role is not provided, default to 'CUSTOMER'
+        if role is None:
+            role = user.UserRole.CUSTOMER
 
-        # Insert the user into the database
+        # Create the user dictionary
+        user_data = {
+            "name": name,
+            "email": email.lower(),
+            "role": role,
+            "phone_no": phone_no,
+            "address": address,
+            "slot_preference": slot_preference,
+            "previous_gym": previous_gym,
+            "password": hashed_password,
+            "verified": verified,
+            "photo": None,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "registration_id": get_next_registration_id()  # Unique registration ID
+        }
+
+        # Insert the user into the database first to get the MongoDB _id
         result = User.insert_one(user_data)
         if not result.inserted_id:
             raise HTTPException(
@@ -60,7 +87,7 @@ async def create_user(payload: user.CreateUserSchema):
                 detail='Failed to create user'
             )
 
-        # Fetch the newly created user
+        # Fetch the newly created user (including MongoDB _id)
         new_user_data = User.find_one({'_id': result.inserted_id})
         if not new_user_data:
             raise HTTPException(
@@ -68,19 +95,38 @@ async def create_user(payload: user.CreateUserSchema):
                 detail='User not found after creation'
             )
 
+        # # Upload profile photo if provided
+        # if file:
+        #     try:
+        #         user_id = str(new_user_data["_id"])  # Get MongoDB _id for user
+        #         file_name = 'photo'  # Ensure the file name is always 'photo'
+        #         photo_url = upload_profile_image(file, user_id, file_name)  # Upload the image before inserting user
+        #         # Update the user with the photo URL
+        #         User.update_one(
+        #             {"_id": new_user_data["_id"]},
+        #             {"$set": {"photo": photo_url}}
+        #         )
+        #         new_user_data['photo'] = photo_url  # Add the photo URL to the response
+        #     except Exception as e:
+        #         loguru.logger.error(f"Error uploading profile photo for user '{new_user_data['registration_id']}': {e}")
+        #         raise HTTPException(
+        #             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        #             detail="Failed to upload profile photo"
+        #         )
+
         # Transform to response schema
         new_user = userResponseEntity(new_user_data)
 
         # Send welcome email for CUSTOMER role
-        if user_data['role'] == 'CUSTOMER':
+        if new_user_data['role'] == user.UserRole.CUSTOMER:
             try:
                 await send_email(
                     sender_email="aioverflow.ml@gmail.com",
                     sender_password="tvnt qtww egyq ktes",  # Retrieve from config in production
-                    to_email=user_data['email'],
+                    to_email=new_user_data['email'],
                     cc_emails=None,
                     subject="Welcome to Our Gym App!",
-                    message=f"Hi {user_data['name']},\n\n"
+                    message=f"Hi {new_user_data['name']},\n\n"
                             f"Thank you for registering with our gym app!\n\n"
                             f"Download the app and start your fitness journey.\n\n"
                             f"Best regards,\nThe Gym Team"
@@ -89,8 +135,6 @@ async def create_user(payload: user.CreateUserSchema):
                 loguru.logger.error(f"Error sending email: {e}")
 
         return {"status": "success", "user": new_user}
-
-
 
 @router.post('/login')
 async def login(payload: user.LoginUserSchema, response: Response, Authorize: AuthJWT = Depends()):

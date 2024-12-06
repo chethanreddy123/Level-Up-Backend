@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from bson.objectid import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from loguru import logger
 import logging
@@ -315,6 +315,7 @@ async def create_exercise(
             message="Exercise created successfully!", 
             **new_exercise)
 
+
 @router.get('/exercises', response_model=dict)
 async def get_exercises(
     type: str = Query(None, description="Type of exercise (optional)"),
@@ -486,7 +487,10 @@ async def delete_exercise(
 # Routes for the user in the gym app
 
 @router.post('/exercise/upload_workout_task')
-async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depends(oauth2.require_user)):
+async def upload_workout_task(
+    payload: UploadWorkoutRequest, 
+    user_id: str = Depends(oauth2.require_user)
+):
     """
     Uploads a workout task and diet log for a user. Both workout and diet logs are stored under the same date.
     """
@@ -500,7 +504,7 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
         workout_name = payload.workout.workout_name
 
         # Get the user's existing record from the database asynchronously
-        existing_record =  WorkoutandDietTracking.find_one({"_id": user_id})
+        existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
 
         # If no record exists, create a new record for the user
         if not existing_record:
@@ -533,21 +537,21 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
             }
 
         else:
-            # Get existing workout logs for the given date
-            existing_workouts = existing_record.get(formatted_date, {}).get("workout_logs", [])
+            # Retrieve the current record for the date
+            date_data = existing_record.get(formatted_date, {})
 
-            # Check if `existing_workouts` is a list (add validation)
-            if not isinstance(existing_workouts, list):
-                existing_workouts = []  # Default to empty list if it's not a list
+            # Extract existing workout logs and diet logs, defaulting to empty lists if not found
+            existing_workouts = date_data.get("workout_logs", [])
+            existing_diet_logs = date_data.get("diet_logs", [])
 
-            # Check if the workout already exists
+            # Check if the workout already exists for today
             if any(workout["workout_name"] == workout_name for workout in existing_workouts):
                 raise HTTPException(
                     status_code=400,
                     detail=f"The data for {workout_name} has already been uploaded today."
                 )
 
-            # Add the workout log to the existing record
+            # Create the new workout log
             new_workout_log = {
                 "workout_name": workout_name,
                 "sets_assigned": payload.workout.sets_assigned,
@@ -560,20 +564,16 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
                 "updated_at": formatted_time
             }
 
-            # Log the new workout log to be added (for debugging)
-            logging.info(f"Appending new workout log: {new_workout_log}")
-
-            # Update the workout logs by appending the new log
+            # Update the workout logs while preserving the diet logs
             WorkoutandDietTracking.update_one(
                 {"_id": user_id},
                 {
-                    "$set": {  # Use $set to add or update the date field
-                        f"{formatted_date}": {
-                            "workout_logs": existing_workouts + [new_workout_log]
-                        }
+                    "$set": {  # Keep the existing diet logs and add the new workout log
+                        f"{formatted_date}.workout_logs": existing_workouts + [new_workout_log],
+                        f"{formatted_date}.diet_logs": existing_diet_logs
                     }
                 },
-                upsert=True  # Ensure that if the date field doesn't exist, it gets created
+                upsert=True  # Ensure that the date field is created if it doesn't exist
             )
 
             return {
@@ -581,51 +581,69 @@ async def upload_workout_task(payload: UploadWorkoutRequest, user_id: str = Depe
                 "message": f"Workout data for {workout_name} uploaded successfully for {formatted_date}!"
             }
 
+
 @router.get('/exercise/workout_logs/{user_id}')
 async def get_workout_logs(
-    user_id: str,  # Path parameter for date (format: dd-mm-yyyy)
+    user_id: str,  # Path parameter for user ID
     auth_user_id: str = Depends(oauth2.require_user),  # Authenticated user ID
-    date: str = Query(..., description="The date for which the workout logs are needed")
+    from_date: str = Query(..., description="Start date for workout logs (format: dd-mm-yyyy)"),
+    to_date: str = Query(..., description="End date for workout logs (format: dd-mm-yyyy)")
 ):
     """
-    Fetches the workout logs for a specific user and date from MongoDB for the trainer and admin to track.
+    Fetches the workout logs for a specific user within a date range from MongoDB for the trainer and admin to track.
+    If no logs are found for a specific day, or if the date doesn't exist, 
+    the message 'No workout logs for this date' will be returned.
     """
     with handle_errors():
-        # Log input data for debugging
-        logger.info(f"Fetching workout logs for user {user_id} on date {date}")
+        user_id = str(user_id)
 
-        # Validate the date format (ensure it's in dd-mm-yyyy)
+        # Convert the string dates to datetime objects for comparison
         try:
-            day, month, year = map(int, date.split("-"))
-            formatted_date = f"{day:02d}-{month:02d}-{year:04d}"  # Ensure leading zeros and consistent format
+            from_date = datetime.strptime(from_date, "%d-%m-%Y")
+            to_date = datetime.strptime(to_date, "%d-%m-%Y")
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format. Use 'dd-mm-yyyy'."
+                status_code=400,
+                detail="Invalid date format. Please use 'dd-mm-yyyy'."
             )
 
-        # Fetch the record for the given user and date
-        existing_record =  WorkoutandDietTracking.find_one(
-            {"_id": user_id, formatted_date: {"$exists": True}}
-        )
+        # Fetch the record for the specific user
+        existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
 
         if not existing_record:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No workout logs found for user {user_id} on {formatted_date}."
+                status_code=404,
+                detail=f"No workout logs found for user {user_id}."
             )
 
-        # Extract workout logs for the given date
-        workout_logs = existing_record.get(formatted_date, {}).get("workout_logs", [])
+        # Initialize a dictionary to group the workout logs by date
+        grouped_workout_logs = {}
 
-        if not workout_logs:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No workout logs found for user {user_id} on {formatted_date}."
-            )
+        # Iterate through all the dates in the range
+        current_date = from_date
+        while current_date <= to_date:
+            date_key = current_date.strftime("%d-%m-%Y")  # Format the date to match MongoDB's date format
 
-        # Return the workout logs for the specified date
+            # Check if the date exists in the database
+            date_data = existing_record.get(date_key)
+
+            if date_data:
+                # If there are workout logs for this date, use them
+                workout_items = date_data.get("workout_logs", [])
+                if workout_items:
+                    grouped_workout_logs[date_key] = workout_items
+                else:
+                    # If no workout logs for this date, add the "No workout logs for this date" message
+                    grouped_workout_logs[date_key] = "No workout logs for this date"
+            else:
+                # If the date doesn't exist, return the "No workout logs for this date" message
+                grouped_workout_logs[date_key] = "No workout logs for this date"
+
+            # Move to the next date
+            current_date += timedelta(days=1)
+
+        # Return the grouped workout logs for the specified date range
         return {
             "status": "success",
-            "workout_logs": workout_logs
+            "workout_logs": grouped_workout_logs
         }

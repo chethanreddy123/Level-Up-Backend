@@ -1,3 +1,4 @@
+from bson import ObjectId
 from passlib.context import CryptContext
 from datetime import datetime
 from app.database import User
@@ -52,3 +53,16 @@ def get_current_ist_time() -> str:
     formatted_date = local_time.strftime("%d-%m-%Y")  # Day-Month-Year format
     formatted_time = local_time.strftime("%I:%M %p")  # 12-hour clock format with AM/PM
     return formatted_date, formatted_time
+
+# Helper function to convert objectIDs to strings in the data
+def convert_object_ids(data):
+    """
+    Recursively converts ObjectId instances to strings in the provided data structure.
+    """
+    if isinstance(data, dict):
+        return {k: convert_object_ids(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_object_ids(item) for item in data]
+    elif isinstance(data, ObjectId):
+        return str(data)
+    return data

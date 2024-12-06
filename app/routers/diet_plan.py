@@ -1,21 +1,25 @@
 # app/routers/diet_plan.py
 
+import logging
 import mimetypes
+from fastapi.responses import JSONResponse
 from firebase_admin import storage
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, File, UploadFile, Body
 from bson.objectid import ObjectId
 from typing import List, Optional
 from datetime import datetime, timedelta
-from loguru import logger
 
-from app.database import User, DietPlans, WorkoutandDietTracking, FoodItems, UserSlots
+from app.database import User, DietPlans, WorkoutandDietTracking, FoodItems, UserSlots, initialize_google_cloud
 from app.schemas.diet_plan import DietPlan, DietPlanResponseSchema, UpdateDietPlanSchema
 from app.utilities.error_handler import handle_errors
 from .. import oauth2
 from app.utilities.utils import get_current_ist_time
-from app.utilities.firebase_upload import upload_image_to_firebase
+from app.utilities.google_cloud_upload import upload_image_to_gcs,upload_diet_log_image
 from pymongo.errors import PyMongoError
 
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -303,7 +307,6 @@ async def delete_diet_plan(
 #         raise HTTPException(status_code=500, detail=f"Error uploading file to Firebase: {str(e)}")
 
 
-
 @router.post('/diet-plan/upload_diet_logs')
 async def upload_diet_logs(
     food_name: str = Form(...),  # Required form field
@@ -324,10 +327,11 @@ async def upload_diet_logs(
         # Get the formatted date and time in IST
         formatted_date, formatted_time = get_current_ist_time()
 
-        # Check if the food_name already exists for the given date and user in MongoDB
+        # Check if the food_name already exists for the given date and user in WorkoutandDietTracking
         existing_record = WorkoutandDietTracking.find_one(
             {"_id": user_id, f"{formatted_date}.diet_logs": {"$elemMatch": {"food_name": food_name}}}
         )
+        
         if existing_record:
             raise HTTPException(
                 status_code=400,
@@ -341,13 +345,14 @@ async def upload_diet_logs(
                 # Debugging: Log file attributes to ensure it's received correctly
                 logger.debug(f"Received image: {image.filename}, Content type: {image.content_type}")
 
-                # Upload image to Firebase and get the URL
-                image_url = upload_image_to_firebase(file=image, user_id=user_id, food_name=food_name, folder_name='diet_log_images')
+                # Upload image to Google Cloud Storage and get the URL
+                image_url =  upload_diet_log_image(file=image, user_id=user_id, food_name=food_name)
                 logger.debug(f"Image uploaded successfully, URL: {image_url}")
 
             except Exception as e:
-                logger.error(f"Failed to upload image to Firebase: {str(e)}")
-                raise HTTPException(status_code=500, detail="Image upload failed")
+                # Log the actual error for more insight
+                logger.error(f"Error during image upload: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
 
         # Create the new diet log entry
         new_diet_log = {
@@ -358,12 +363,12 @@ async def upload_diet_logs(
             "uploaded_time": formatted_time
         }
 
-        # Find the existing user record
-        existing_record = WorkoutandDietTracking.find_one({"_id": user_id})
+        # First, check if the user exists in WorkoutandDietTracking
+        existing_user_record = WorkoutandDietTracking.find_one({"_id": user_id})
 
-        if existing_record:
+        if existing_user_record:
             # Check if the specific date field (e.g., '21-11-2024') exists
-            if formatted_date in existing_record:
+            if formatted_date in existing_user_record:
                 # If the date exists, append the new diet log to that date's diet_logs array
                 try:
                     WorkoutandDietTracking.update_one(
@@ -404,8 +409,34 @@ async def upload_diet_logs(
                     raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
         else:
-            # If the user record doesn't exist, handle this case (optional)
-            raise HTTPException(status_code=404, detail="User not found")
+            # If the user does not exist in WorkoutandDietTracking, create a new entry
+            logger.debug(f"User {user_id} not found in WorkoutandDietTracking, checking User collection...")
+
+            # Check if the user exists in the User collection
+            user_in_user_collection = User.find_one({"_id": ObjectId(user_id)})
+
+            if user_in_user_collection:
+                # Create a new record for the user in WorkoutandDietTracking
+                try:
+                    WorkoutandDietTracking.insert_one({
+                        "_id": user_id,
+                        formatted_date: {
+                            "workout_logs": [],  # Empty workout_logs for the new date
+                            "diet_logs": [new_diet_log]  # Add the new diet log for today
+                        }
+                    })
+                    return {
+                        "status": "success",
+                        "message": f"Diet log for {food_name.title()} uploaded successfully on {formatted_date}!",
+                        "image_url": image_url  # Return the image URL here
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to create new user record in WorkoutandDietTracking: {str(e)}")
+                    raise HTTPException(status_code=500, detail="Error creating user record")
+            else:
+                # User not found in both collections
+                raise HTTPException(status_code=404, detail="User not found in User collection")
+
 
 
 
@@ -479,40 +510,83 @@ async def get_diet_logs(
         }
     
 
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
+# ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
 
-@router.post("/upload-image/")
-async def upload_image(file: UploadFile = File(None)):
-    """
-    Upload an image to Firebase Storage.
-    """
-    content_type = file.content_type
+# @router.post("/upload-image/")
+# async def upload_image(file: UploadFile = File(None)):
+#     """
+#     Upload an image to Firebase Storage.
+#     """
+#     content_type = file.content_type
 
-    # Validate file type
-    if content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid file type. Only image files are allowed.")
+#     # Validate file type
+#     if content_type not in ALLOWED_IMAGE_TYPES:
+#         raise HTTPException(status_code=400, detail="Invalid file type. Only image files are allowed.")
 
-    # Extract the file extension
-    extension = mimetypes.guess_extension(content_type)
-    if not extension:
-        raise HTTPException(status_code=400, detail="Unsupported file type.")
+#     # Extract the file extension
+#     extension = mimetypes.guess_extension(content_type)
+#     if not extension:
+#         raise HTTPException(status_code=400, detail="Unsupported file type.")
 
-    # Define the file path (you can customize this based on your needs)
-    file_name = f"level_up/images/{file.filename}"
+#     # Define the file path (you can customize this based on your needs)
+#     file_name = f"level_up/images/{file.filename}"
 
+#     try:
+#         # Upload the image to Firebase Storage
+#         bucket = storage.bucket()
+#         blob = bucket.blob(file_name)
+
+#         # Upload the file
+#         blob.upload_from_file(file.file, content_type=content_type)
+#         blob.make_public()  # Make the file publicly accessible (optional)
+
+#         # Return the public URL of the uploaded image
+#         logger.info(f"Image uploaded successfully: {blob.public_url}")
+#         return {"url": blob.public_url}
+
+#     except Exception as e:
+#         logger.error(f"Error uploading image: {str(e)}")
+#         raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
+    
+
+@router.post("/upload_image/")
+async def upload_image(file: UploadFile = File(...)):
     try:
-        # Upload the image to Firebase Storage
-        bucket = storage.bucket()
-        blob = bucket.blob(file_name)
+        # Initialize Google Cloud Storage bucket
+        bucket = initialize_google_cloud()
+        if not bucket:
+            return JSONResponse(status_code=500, content={"message": "Failed to connect to Google Cloud Storage"})
+        
+        # Read the image data
+        file_content = await file.read()
+        
+        # Create a blob (file object) in the bucket with the file name as the object name
+        blob = bucket.blob(file.filename)
+        blob.upload_from_string(file_content, content_type=file.content_type)
+        
+        # Make the file public
+        blob.make_public()
 
-        # Upload the file
-        blob.upload_from_file(file.file, content_type=content_type)
-        blob.make_public()  # Make the file publicly accessible (optional)
-
-        # Return the public URL of the uploaded image
-        logger.info(f"Image uploaded successfully: {blob.public_url}")
-        return {"url": blob.public_url}
+        # Return success response with the URL of the uploaded image
+        image_url = blob.public_url  # This will be accessible if the object is publicly accessible
+        return JSONResponse(content={"message": "Image uploaded successfully", "image_url": image_url})
 
     except Exception as e:
-        logger.error(f"Error uploading image: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error uploading image: {str(e)}")
+        return JSONResponse(status_code=500, content={"message": str(e)})
+    
+
+# @router.post("/diet/upload_diet_log_image")
+# async def upload_diet_log_image(
+#     file: UploadFile = File(...),  # Required image file
+#     user_id: str = Depends(oauth2.require_user),  # Authenticated user ID
+#     food_name: str = Form(...),  # Food name for the log
+# ):
+#     """
+#     Uploads an image file to Google Cloud Storage and returns its public URL.
+#     """
+#     try:
+#         # Upload image to Google Cloud Storage
+#         image_url = upload_image_to_gcs(file, user_id=user_id, food_name=food_name, folder_name='diet_logs')
+#         return {"status": "success", "image_url": image_url}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=str(e))
