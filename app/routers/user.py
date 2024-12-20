@@ -25,6 +25,14 @@ from app.schemas import user
 
 router = APIRouter()
 
+# Helper function to extract the required fields
+def extract_food_details(food_item):
+    return {
+        "food_name": food_item.get("food_name"),
+        "energy_kcal": food_item.get("energy_kcal"),
+        "quantity": food_item.get("quantity")
+    }
+
 
 @router.get('/me', response_model= user.UserResponse)
 def get_me(user_id: str = Depends(oauth2.require_user)):
@@ -218,16 +226,18 @@ async def get_user_details(
         if diet_plan_id:
             diet_plan =  DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
             if diet_plan:
-                # Expand menu items in menu_plan
+                # Update your diet plan expansion logic
                 for time_slot, details in diet_plan.get('menu_plan', {}).get('timings', {}).items():
                     details["menu"] = [
-                         FoodItems.find_one({'_id': ObjectId(item_id)}) for item_id in details["menu"]
+                        extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
+                        for item_id in details["menu"]
                     ]
 
                 # Expand menu items in one_day_detox_plan
                 for time_slot, details in diet_plan.get('one_day_detox_plan', {}).items():
                     details["menu"] = [
-                         FoodItems.find_one({'_id': ObjectId(item_id)}) for item_id in details["menu"]
+                        extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
+                        for item_id in details["menu"]
                     ]
                 diet_plan = convert_object_ids(diet_plan)
 

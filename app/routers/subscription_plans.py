@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 import loguru
+from pydantic import PositiveInt
 from app.database import GymPlans, User  # Assuming GymPlans is the MongoDB collection
 from app.schemas.subscription_plans import GymPlanSchema, GymPlanUpdateSchema
 from app.utilities.error_handler import handle_errors
@@ -8,13 +9,23 @@ from bson import ObjectId
 from app.utilities.google_cloud_upload import upload_gym_plan_image
 from app.utilities.utils import get_current_ist_time
 from loguru import logger
+from datetime import datetime, timedelta
+import calendar
 
 router = APIRouter()
+
+# Helper function to calculate remaining days based on today's date and end date
+def calculate_remaining_days(today, end_date):
+    """
+    Calculate the number of remaining days for the subscription plan.
+    """
+    delta = end_date - today
+    return delta.days if delta.days > 0 else 0  # Ensure remaining days doesn't go negative
 
 @router.post('/gym-plan', status_code=status.HTTP_201_CREATED)
 async def create_gym_plan(
     plan_name: str = Form(...),  # Required field for gym plan name
-    duration: int = Form(...),   # Duration should be an integer (1, 3, 6, or 12)
+    duration: PositiveInt = Form(...),    # Duration should be an integer (1, 3, 6, or 12)
     price: float = Form(...),    # Price should be a float
     image: UploadFile = File(None),  # Optional image upload
     user_id: str = Depends(oauth2.require_user)  # Assuming you have an oauth2 dependency for user authentication
@@ -23,14 +34,11 @@ async def create_gym_plan(
     Create a new gym subscription plan.
     Ensures the plan name is unique (case-insensitive).
     """
-    # Allowed values for duration
-    allowed_durations = {1, 3, 6, 12}
-
-    # Validate that the duration is one of the allowed values
-    if duration not in allowed_durations:
+    # Optional: You can add a range check for the duration if needed
+    if duration < 1 or duration > 365:  # For example, limiting to a max of 10 years (3650 days)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid duration. Allowed values are 1, 3, 6, or 12 months."
+            detail="Invalid duration. Duration should be between 1 and 365 days."
         )
 
     # Log the action of creating a new plan
@@ -52,7 +60,7 @@ async def create_gym_plan(
         # Prepare the gym plan data
         gym_plan_data = {
             "plan_name": plan_name,
-            "duration": f"{duration} month" if duration == 1 else f"{duration} months",  # Format duration as a string
+            "duration (days)": duration,  # Format duration as a string
             "price": price,
         }
 
@@ -277,11 +285,22 @@ async def add_gym_plan(
                 detail=f"Subscription plan with ID {subscription_plan_id} not found in GymPlans"
             )
 
+        # Parse the 'duration' field (e.g., '3 months', '6 months') and convert to days
+        duration_in_days = gym_plan["duration (days)"]
+
+        # Get today's date
+        today = datetime.utcnow()
+
+        # Calculate the date the subscription will end
+        end_date = today + timedelta(days=duration_in_days)
+
         # Prepare the subscription plan to add to the user
         subscription_plan = {
             "plan_name": gym_plan["plan_name"],
-            "duration": gym_plan["duration"],
-            "price": gym_plan["price"]
+            "date_added": today,  # Store the date when the plan was added
+            "duration": duration_in_days,  # Store the duration in days
+            "remaining_days": calculate_remaining_days(today, end_date),  # Calculate remaining days
+            "end_date": end_date  # Store the actual end date
         }
 
         # Add subscription_plan to the user document
@@ -297,7 +316,7 @@ async def add_gym_plan(
             )
 
         # Log the addition of the gym plan
-        loguru.logger.info(f"User {user_id} subscribed to {gym_plan['plan_name']} for {gym_plan['duration']} at {gym_plan['price']}.")
+        loguru.logger.info(f"User {user_id} subscribed to {gym_plan['plan_name']} for {gym_plan['duration (days)']} at {gym_plan['price']}.")
 
         # Return a success message
         return {

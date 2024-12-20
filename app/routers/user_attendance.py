@@ -147,43 +147,61 @@ def get_attendance(
     auth_user_id: str = Depends(oauth2.require_user)  # Getting authenticated user
 ):
     """
-    Get attendance details for the user from the start of the current month to the current day.
-    Returns the number of present days, total days, and attendance percentage.
+    Get attendance details for the user from their join date to today (or from the start of the month if it's after the first month).
+    Returns the number of present days, total days they were eligible to attend, and attendance percentage.
     """
     try:
         # Check if the user exists in the User collection
-        user_exists = User.find_one({"_id": ObjectId(user_id)})
-        if not user_exists:
+        user = User.find_one({"_id": ObjectId(user_id)})
+        if not user:
             logger.warning(f"User with ID: {user_id} not found.")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with ID: {user_id} not found."
             )
 
-        # Calculate the start of the current month and the current date
+        # Get the user's join date (assuming it's stored in 'join_date')
+        join_date = user.get("created_at")
+        if not join_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User does not have a join date."
+            )
+
+        # Get today's date and start of the current month
         current_date = datetime.utcnow().date()
         start_of_month = current_date.replace(day=1)
 
-        # Query attendance records for the given user from the start of the month to today
+        # If it's the first month, calculate attendance from the join date.
+        # Otherwise, calculate from the start of the month.
+        if join_date.month == current_date.month and join_date.year == current_date.year:
+            # First month: calculate total days from join date to today
+            eligible_start_date = join_date
+            total_days_in_month = (current_date - eligible_start_date).days + 1
+        else:
+            # Subsequent months: calculate from the 1st of the current month
+            eligible_start_date = start_of_month
+            total_days_in_month = current_date.day  # Count the days from the 1st to today
+
+        # Query attendance records for the user from their eligible start date to today
         attendance_records = list(UserAttendance.find({
             "user_id": user_id,
-            "date": {"$gte": start_of_month.isoformat(), "$lte": current_date.isoformat()}
+            "date": {"$gte": eligible_start_date.isoformat(), "$lte": current_date.isoformat()}
         }))
 
-        # Calculate total days and present days
-        total_days = len(attendance_records)  # Count all records, both present and absent
+        # Calculate present days
         present_days = sum(1 for record in attendance_records if record.get("status") == True)
 
         # Calculate attendance percentage
-        attendance_percentage = (present_days / total_days) * 100 if total_days > 0 else 0
+        attendance_percentage = (present_days / total_days_in_month) * 100 if total_days_in_month > 0 else 0
 
         return {
             "user_id": user_id,
-            "total_days": total_days,
+            "total_days": total_days_in_month,
             "present_days": present_days,
             "attendance_percentage": round(attendance_percentage, 2)
         }
-    
+
     except HTTPException as http_exc:
         # Log and raise the HTTPException with its original message
         logger.warning(f"HTTPException: {http_exc.detail}")
