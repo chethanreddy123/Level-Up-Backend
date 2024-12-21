@@ -80,7 +80,11 @@ async def add_workout_plan(
         # Assign the workout plan to the customer
         update_result = User.update_one(
             {"_id": customer_id},
-            {"$set": {"workout_plan": workout_plan_data}}
+            {"$set": {
+                "workout_plan": workout_plan_data,
+                "height": workout_plan_data["height"],
+                "weight": workout_plan_data["weight"]
+            }}
         )
 
         if update_result.modified_count == 0:
@@ -520,6 +524,7 @@ async def upload_workout_task(
                             "reps_done": payload.workout.reps_done,
                             "load_assigned": payload.workout.load_assigned,
                             "load_done": payload.workout.load_done,
+                            "intensity": payload.workout.intensity,
                             "performance": payload.workout.performance,
                             "updated_at": formatted_time
                         }
@@ -560,6 +565,7 @@ async def upload_workout_task(
                 "reps_done": payload.workout.reps_done,
                 "load_assigned": payload.workout.load_assigned,
                 "load_done": payload.workout.load_done,
+                "intensity": payload.workout.intensity,
                 "performance": payload.workout.performance,
                 "updated_at": formatted_time
             }

@@ -46,6 +46,7 @@ def get_me(user_id: str = Depends(oauth2.require_user)):
 async def update_user_details(
     user_id: str = Depends(oauth2.require_user),  # Get authenticated user ID
     name: Optional[str] = Form(None),  # Optional: New name
+    height: Optional[int] = Form(None),
     email: Optional[str] = Form(None),  # Optional: New email
     phone_no: Optional[str] = Form(None),  # Optional: New phone number
     address: Optional[str] = Form(None),  # Optional: New address
@@ -71,6 +72,10 @@ async def update_user_details(
         # Update fields if provided
         if name:
             updated_data["name"] = name
+        # if weight:
+        #     updated_data['weight'] = weight
+        if height:
+            updated_data['height'] = height
         if email:
             updated_data["email"] = email.lower()  # Make email lowercase
         if phone_no:
@@ -95,7 +100,13 @@ async def update_user_details(
         if updated_data:
             result = User.update_one(
                 {"_id": ObjectId(user_id)},  # Find the user by ID
-                {"$set": updated_data}  # Update the fields
+                {
+                    "$set": {
+                        **updated_data,  # Assuming updated_data is a dictionary, this will unpack it
+                        # "workout_plan.current_weight": weight,  # Set the current_weight inside workout_plan
+                        "workout_plan.current_height": height  # Set the current_height inside workout_plan
+                    }
+                }  # Update the fields
             )
 
             if result.modified_count == 0:
@@ -244,6 +255,8 @@ async def get_user_details(
     # Prepare serialized user data
     serialized_user = {
         "name": user.get("name", ""),
+        "height": user.get("height", ""),
+        "weight": user.get("weight", ""),
         "email": user.get("email", ""),
         "photo": user.get("photo", ""),
         "role": user.get("role", ""),
@@ -255,6 +268,7 @@ async def get_user_details(
         "workout_plan": {
             "start_date": user.get("workout_plan", {}).get("start_date"),
             "end_date": user.get("workout_plan", {}).get("end_date"),
+            "current_height": user.get("workout_plan", {}).get("current_height"),
             "current_weight": user.get("workout_plan", {}).get("current_weight"),
             "end_weight": user.get("workout_plan", {}).get("end_weight"),
             "workout_plan_details": workout_plan if workout_plan else None
@@ -384,6 +398,7 @@ async def delete_user(
 async def upload_weight(
     user_id: str = Depends(oauth2.require_user), 
     weight: float = Form(...), 
+    height: int = Form(...),
     image: Optional[UploadFile] = File(None) 
 ):
     """
@@ -391,24 +406,24 @@ async def upload_weight(
     Ensures that only one weight entry can be made per week.
     """
     with handle_errors():
-        # Get the current date in DD-MM-YYYY format
-        current_date = datetime.utcnow().strftime("%d-%m-%Y")
-        
+        # Get the current datetime in ISO 8601 format
+        current_datetime = datetime.utcnow().isoformat()
+
         # Fetch the user from the database
         user = User.find_one({"_id": ObjectId(user_id)})
-        
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"User with ID {user_id} not found"
             )
-        
+
         # Check if the user already has a weight entry for the current week
         current_week = datetime.utcnow().isocalendar()[1]  # Week number of the year
         for entry in user.get('weight_tracking', []):
             # If there's already an entry for the current week, raise a warning
-            entry_date = datetime.strptime(entry['date'], "%d-%m-%Y")
-            if entry_date.isocalendar()[1] == current_week:
+            entry_datetime = datetime.fromisoformat(entry['datetime'])
+            if entry_datetime.isocalendar()[1] == current_week:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="User has already uploaded weight for this week"
@@ -416,15 +431,16 @@ async def upload_weight(
 
         # Prepare the new weight entry
         new_entry = {
-            "date": current_date,
+            "datetime": current_datetime,
             "weight": weight,
+            "height": height,
             "photo": None  # Temporarily keep photo as None since Firebase is not working
         }
 
         if image:
             # If image is provided, handle the file upload
             try:
-                file_name = f"weight_{current_date}"  # You can use a different naming convention if needed
+                file_name = f"weight_{current_datetime}"  # You can use a different naming convention if needed
                 photo_url = upload_weight_image(image, user_id, file_name)  # Upload the image
                 new_entry["photo"] = photo_url  # Store the photo URL in the new entry
             except Exception as e:
@@ -437,8 +453,16 @@ async def upload_weight(
         # Add the new entry to the user's weight_tracking field
         result = User.update_one(
             {"_id": ObjectId(user_id)},
-            {"$push": {"weight_tracking": new_entry}}  # Push new weight entry into the weight_tracking array
+            {
+                "$push": {"weight_tracking": new_entry},  # Push new weight entry into the weight_tracking array
+                "$set": {
+                    "weight": weight,
+                    "height": height,
+                    "workout_plan.current_weight": weight
+                } 
+            }
         )
+
 
         if result.modified_count == 0:
             raise HTTPException(
@@ -451,6 +475,7 @@ async def upload_weight(
             "status": "success",
             "message": "Weight uploaded successfully."
         }
+
     
     
 @router.get('/user/track_weight/{user_id}', status_code=status.HTTP_200_OK)
@@ -486,3 +511,99 @@ async def get_weight_details(
             "user_id": user_id,
             "weight_tracking": weight_tracking
         }
+
+
+@router.get('/user/get_weight_details/{user_id}', status_code=status.HTTP_200_OK)
+def get_weight_details(
+    user_id: str,
+    auth_user_id: str = Depends(oauth2.require_user)  # Getting authenticated user
+):
+    """
+    Get the last 3 months' weight tracking details for the user.
+    Returns the weight data grouped by week.
+    """
+    try:
+        # Check if the user exists in the User collection
+        user = User.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID: {user_id} not found."
+            )
+
+        # Get the current date
+        current_date = datetime.utcnow().date()
+
+        # Calculate the date 3 months ago
+        three_months_ago = current_date - timedelta(days=90)
+
+        # Extract the weight tracking data from the user's record
+        weight_tracking = user.get("weight_tracking", [])
+
+        # Prepare a list of weeks for the last 3 months
+        weeks = []
+        start_date = three_months_ago
+        while start_date <= current_date:
+            # Add the start of each week
+            week_start = start_date - timedelta(days=start_date.weekday())  # Start of the week (Monday)
+            week_end = week_start + timedelta(days=6)  # End of the week (Sunday)
+            weeks.append((week_start, week_end))
+            start_date = week_end + timedelta(days=1)
+
+        # Group weight data by week
+        grouped_data = {}
+        for entry in weight_tracking:
+            try:
+                # Handle both ISO 8601 format and custom date formats
+                if "T" in entry["datetime"]:
+                    entry_date = datetime.fromisoformat(entry["datetime"]).date()
+                else:
+                    entry_date = datetime.strptime(entry["datetime"], "%d-%m-%Y").date()
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid datetime format in weight tracking data: {entry['datetime']}"
+                )
+
+            # Find which week this entry belongs to
+            for week_start, week_end in weeks:
+                if week_start <= entry_date <= week_end:
+                    # Group data by week (start date of the week)
+                    week_start_str = week_start.strftime("%Y-%m-%d")
+                    if week_start_str not in grouped_data:
+                        grouped_data[week_start_str] = []
+
+                    grouped_data[week_start_str].append({
+                        "date": entry["datetime"],
+                        "weight": entry["weight"],
+                        "photo": entry["photo"]
+                    })
+
+        # Prepare the response with 12 data points (one for each week in the last 3 months)
+        weekly_data = []
+        for week_start, week_end in weeks:
+            week_start_str = week_start.strftime("%Y-%m-%d")
+            if week_start_str in grouped_data:
+                # If there is data for this week, return the latest entry for this week
+                weekly_data.append(grouped_data[week_start_str][-1])  # Return last entry of the week
+            else:
+                # No data for this week, append null data
+                weekly_data.append({
+                    "date": week_start_str,
+                    "weight": None,  # No data for this week
+                    "photo": None
+                })
+
+        # Return the data
+        return {
+            "user_id": user_id,
+            "weight_tracking": weekly_data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing your request."
+        )

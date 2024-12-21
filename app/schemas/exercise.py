@@ -89,7 +89,8 @@ class WorkoutEntry(BaseModel):
     sets_done: int 
     reps_assigned: int  
     reps_done: int  
-    weight: Optional[float] = 1  
+    weight: Optional[float] = 1
+    intensity: Optional[int] = 5  
 
     @property
     def load_assigned(self) -> float:

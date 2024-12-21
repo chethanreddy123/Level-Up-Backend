@@ -95,6 +95,7 @@ class WorkoutPlanDetails(BaseModel):
     end_date: date  # End date of the workout plan
     current_weight: float  # The user's current weight
     end_weight: float  # Target weight to achieve
+    current_height: int
     workout_plan_id: str  # The ID of the workout plan
     class Config:
         # Ensure dates are correctly formatted (optional depending on your use case)
