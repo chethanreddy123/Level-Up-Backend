@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Query, HTTPException, logger, status, UploadFile, File, Form
 from bson.objectid import ObjectId
 from datetime import datetime, timedelta
 
 from fastapi.encoders import jsonable_encoder
 import loguru
+from app.routers.subscription_plans import calculate_remaining_days
 from app.serializers.userSerializers import userResponseEntity, userRegistrationEntity, serialize_user, serialize_users
 from app.utilities.error_handler import handle_errors
 from app.database import Registrations, WorkoutPlans, DietPlans, Exercises, FoodItems
@@ -47,8 +48,8 @@ async def update_user_details(
     user_id: str = Depends(oauth2.require_user),  # Get authenticated user ID
     name: Optional[str] = Form(None),  # Optional: New name
     height: Optional[int] = Form(None),
-    email: Optional[str] = Form(None),  # Optional: New email
     phone_no: Optional[str] = Form(None),  # Optional: New phone number
+    occupation: Optional[str] = Form(None),
     address: Optional[str] = Form(None),  # Optional: New address
     file: Optional[UploadFile] = File(None)  # Optional: New profile photo
 ):
@@ -72,12 +73,10 @@ async def update_user_details(
         # Update fields if provided
         if name:
             updated_data["name"] = name
-        # if weight:
-        #     updated_data['weight'] = weight
+        if occupation:
+            updated_data['occupation'] = occupation
         if height:
             updated_data['height'] = height
-        if email:
-            updated_data["email"] = email.lower()  # Make email lowercase
         if phone_no:
             updated_data["phone_no"] = phone_no
         if address:
@@ -207,12 +206,12 @@ async def get_user_details(
     This route is accessible by all users.
     """
     try:
-        object_id = ObjectId(user_id)  
+        object_id = ObjectId(user_id)
     except Exception:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format")
 
     # Fetch user details
-    user =  User.find_one({'_id': object_id})
+    user = User.find_one({'_id': object_id})
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -221,7 +220,7 @@ async def get_user_details(
     if 'workout_plan' in user:
         workout_plan_id = user['workout_plan'].get('workout_plan_id')
         if workout_plan_id:
-            workout_plan =  WorkoutPlans.find_one({'_id': ObjectId(workout_plan_id)})
+            workout_plan = WorkoutPlans.find_one({'_id': ObjectId(workout_plan_id)})
             if workout_plan:
                 # Fetch exercise details
                 for day, exercises in workout_plan.get('schedule', {}).items():
@@ -235,7 +234,7 @@ async def get_user_details(
     if 'diet_plan' in user:
         diet_plan_id = user['diet_plan'].get('diet_plan_id')
         if diet_plan_id:
-            diet_plan =  DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
+            diet_plan = DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
             if diet_plan:
                 # Update your diet plan expansion logic
                 for time_slot, details in diet_plan.get('menu_plan', {}).get('timings', {}).items():
@@ -252,6 +251,38 @@ async def get_user_details(
                     ]
                 diet_plan = convert_object_ids(diet_plan)
 
+    # Fetch and update subscription plan details
+    subscription_plan = user.get("subscription_plan", {})
+    if subscription_plan:
+        end_date = subscription_plan.get("end_date")
+        today = datetime.utcnow()
+
+        # Calculate remaining days
+        remaining_days = calculate_remaining_days(today, end_date)
+
+        # If the subscription has expired, update the subscription details
+        if remaining_days <= 0:
+            # Mark the subscription as expired in the user document
+            User.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"subscription_plan.status": "expired", "subscription_plan.remaining_days": 0}}
+            )
+
+            # Set the status as 'expired' and remaining days to 0
+            subscription_plan["status"] = "expired"
+            subscription_plan["remaining_days"] = 0  # Since it's expired, remaining days are 0
+
+        else:
+            # If the subscription is still active, update remaining days in the user document
+            User.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"subscription_plan.remaining_days": remaining_days}}
+            )
+
+            # Set the status as 'active'
+            subscription_plan["status"] = "active"
+            subscription_plan["remaining_days"] = remaining_days  # Update the remaining days
+
     # Prepare serialized user data
     serialized_user = {
         "name": user.get("name", ""),
@@ -261,6 +292,8 @@ async def get_user_details(
         "photo": user.get("photo", ""),
         "role": user.get("role", ""),
         "phone_no": user.get("phone_no", ""),
+        "occupation": user.get("occupation", ""),
+        "address": user.get("address", ""),
         "created_at": user.get("created_at"),
         "updated_at": user.get("updated_at"),
         "registration_id": user.get("registration_id", ""),
@@ -274,13 +307,14 @@ async def get_user_details(
             "workout_plan_details": workout_plan if workout_plan else None
         },
         "diet_plan": diet_plan if diet_plan else None,
-        'weight_tracking':user.get("weight_tracking", {}),
+        'weight_tracking': user.get("weight_tracking", {}),
         "screening": user.get("screening", {}),
-        "subscription_plan": user.get("subscription_plan", {}),
+        "subscription_plan": subscription_plan if subscription_plan else None,  # Include subscription plan here
         "id": str(user["_id"])  # Convert ObjectId to string here
     }
 
     return jsonable_encoder({"status": "success", "user": serialized_user})
+
 
 
 @router.get('/users', response_model=dict)
@@ -541,6 +575,7 @@ def get_weight_details(
         weight_tracking = user.get("weight_tracking", [])
 
         # Prepare a list of weeks for the last 3 months
+        # Recalculate weeks based on the new entries
         weeks = []
         start_date = three_months_ago
         while start_date <= current_date:
@@ -554,25 +589,20 @@ def get_weight_details(
         grouped_data = {}
         for entry in weight_tracking:
             try:
-                # Handle both ISO 8601 format and custom date formats
                 if "T" in entry["datetime"]:
                     entry_date = datetime.fromisoformat(entry["datetime"]).date()
                 else:
                     entry_date = datetime.strptime(entry["datetime"], "%d-%m-%Y").date()
             except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid datetime format in weight tracking data: {entry['datetime']}"
-                )
+                logger.error(f"Invalid datetime format: {entry['datetime']}")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid datetime format")
 
             # Find which week this entry belongs to
             for week_start, week_end in weeks:
                 if week_start <= entry_date <= week_end:
-                    # Group data by week (start date of the week)
                     week_start_str = week_start.strftime("%Y-%m-%d")
                     if week_start_str not in grouped_data:
                         grouped_data[week_start_str] = []
-
                     grouped_data[week_start_str].append({
                         "date": entry["datetime"],
                         "weight": entry["weight"],
@@ -600,9 +630,13 @@ def get_weight_details(
             "weight_tracking": weekly_data
         }
 
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        # Log HTTP errors (e.g., 404, 400)
+        logger.error(f"HTTPException occurred: {e.detail}")
+        raise e
     except Exception as e:
+        # Log unexpected errors
+        logger.exception(f"An unexpected error occurred: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing your request."

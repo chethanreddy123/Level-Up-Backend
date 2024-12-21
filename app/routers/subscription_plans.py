@@ -325,7 +325,84 @@ async def add_gym_plan(
             "user_id": user_id,
             "subscription_plan": subscription_plan
         }
-    
+
+@router.get('/gym-plan/user/{user_id}', status_code=status.HTTP_200_OK)
+async def get_gym_plan(
+    user_id: str,
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Retrieve the gym subscription plan details for a user, including the remaining days.
+    If the subscription has expired, update it accordingly.
+    """
+    with handle_errors():
+        # Fetch the user from the database
+        user = User.find_one({"_id": ObjectId(user_id)})
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {user_id} not found"
+            )
+
+        # Check if the user has a subscription plan
+        if "subscription_plan" not in user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User does not have a subscription plan"
+            )
+
+        # Get the user's current subscription plan
+        subscription_plan = user["subscription_plan"]
+        end_date = subscription_plan["end_date"]
+        today = datetime.utcnow()
+
+        # Calculate remaining days
+        remaining_days = calculate_remaining_days(today, end_date)
+
+        # If the subscription has expired, update the subscription details
+        if remaining_days <= 0:
+            # Here, you can choose to either:
+            # 1. Set the plan as expired and remove it
+            # 2. Or, reassign the plan with a new one (if applicable)
+            # For this example, we will simply mark the plan as expired.
+
+            # Update the user document to mark the subscription as expired
+            User.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"subscription_plan.status": "expired"}}
+            )
+
+            # You could also return a message indicating the subscription expired
+            subscription_plan["status"] = "expired"
+            remaining_days = 0  # Since it's expired, remaining days are 0
+
+        else:
+            # If the subscription is still active, update remaining days in the user document
+            User.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"subscription_plan.remaining_days": remaining_days}}
+            )
+
+            # Set the status as 'active'
+            subscription_plan["status"] = "active"
+            
+        # Prepare the response data
+        return {
+            "status": "success",
+            "message": "User's gym subscription plan details retrieved successfully.",
+            "user_id": user_id,
+            "subscription_plan": {
+                "plan_name": subscription_plan["plan_name"],
+                "date_added": subscription_plan["date_added"],
+                "duration": subscription_plan["duration"],
+                "remaining_days": remaining_days,
+                "end_date": subscription_plan["end_date"],
+                "status": subscription_plan.get("status", "active")  # Include status (active/expired)
+            }
+        }  
+
+
 @router.delete('/gym-plan/remove_user/{user_id}', status_code=status.HTTP_200_OK)
 async def delete_gym_plan(
     user_id: str,  # The user_id from query parameters
