@@ -82,8 +82,8 @@ async def add_workout_plan(
             {"_id": customer_id},
             {"$set": {
                 "workout_plan": workout_plan_data,
-                "height": workout_plan_data["height"],
-                "weight": workout_plan_data["weight"]
+                "height": workout_plan_data["current_height"],
+                "weight": workout_plan_data["current_weight"]
             }}
         )
 
