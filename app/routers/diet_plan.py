@@ -98,12 +98,12 @@ async def create_diet_plan(
                 }
             )
 
-            if user_update_result.modified_count == 0:
-                logger.error(f"Failed to update user with diet plan details")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to update user with diet plan details."
-                )
+            # if user_update_result.modified_count == 0:
+            #     logger.error(f"Failed to update user with diet plan details")
+            #     raise HTTPException(
+            #         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            #         detail="Failed to update user with diet plan details."
+            #     )
 
             return DietPlanResponseSchema(diet_id=new_diet_plan['_id'], **new_diet_plan)
 
