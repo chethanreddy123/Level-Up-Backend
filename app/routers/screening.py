@@ -53,7 +53,11 @@ async def submit_screening_form(
         # Update user document with screening data in MongoDB
         update_result = User.update_one(
             {"_id": user_id},  # Use `_id` for MongoDB operations
-            {"$set": {"screening": screening_data}}
+            {"$set": {
+                "screening": screening_data,
+                "occupation": screening_data["occupation"],
+                "age": screening_data["age"]
+                }}
         )
 
         if update_result.modified_count == 0:

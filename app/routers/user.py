@@ -46,6 +46,7 @@ def get_me(user_id: str = Depends(oauth2.require_user)):
 @router.put('/user/update_by_self', status_code=200)
 async def update_user_details(
     user_id: str = Depends(oauth2.require_user),  # Get authenticated user ID
+    age: Optional[int] = Form(None),
     name: Optional[str] = Form(None),  # Optional: New name
     height: Optional[int] = Form(None),
     phone_no: Optional[str] = Form(None),  # Optional: New phone number
@@ -73,6 +74,8 @@ async def update_user_details(
         # Update fields if provided
         if name:
             updated_data["name"] = name
+        if age:
+            updated_data["age"] = age
         if occupation:
             updated_data['occupation'] = occupation
         if height:
@@ -288,6 +291,7 @@ async def get_user_details(
         "name": user.get("name", ""),
         "height": user.get("height", ""),
         "weight": user.get("weight", ""),
+        "age": user.get("age", ""),
         "email": user.get("email", ""),
         "photo": user.get("photo", ""),
         "role": user.get("role", ""),
