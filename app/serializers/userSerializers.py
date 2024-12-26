@@ -16,6 +16,10 @@ def userResponseEntity(user):
     return {
         "id": str(user["_id"]),
         "name": user["name"],
+        "age": user["age"],
+        "height": user["height"],
+        "weight": user["weight"],
+        "occupation": user["occupation"],
         "email": user["email"],
         "photo": user.get("photo"),  # Use .get() to avoid KeyError if the field is missing
         "role": user.get("role"),

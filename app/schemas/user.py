@@ -45,6 +45,11 @@ class LoginUserSchema(BaseModel):
 
 class UserResponseSchema(UserBaseSchema):
     id: str
+    height: int
+    weight: float
+    age: int
+    occupation: str
+    
 
 class UserResponse(BaseModel):
     status: str

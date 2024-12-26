@@ -128,7 +128,7 @@ async def get_diet_plan_for_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID format.")
 
     # Find the diet plan for the specific user
-    diet_plan =  DietPlans.find_one({"_id": user_id})
+    diet_plan = DietPlans.find_one({"_id": user_id})
     
     if not diet_plan:
         raise HTTPException(
@@ -136,31 +136,51 @@ async def get_diet_plan_for_user(
             detail="Diet plan not found for this user."
         )
 
-    # Helper function to populate food items
-    def populate_food_items(menu: List[str]) -> List[dict]:
-        food_items = []
-        for item_id in menu:
-            food_item =  FoodItems.find_one({"_id": ObjectId(item_id)})
-            if food_item:
-                food_items.append({
-                    "food_name": food_item["food_name"],
-                    "energy_kcal": food_item.get("energy_kcal"),
-                    "quantity": food_item.get("quantity"),
-                    "carbohydrates": food_item.get("carbohydrates"),
-                    "protein": food_item.get("protein"),
-                })
-        return food_items
+    # Collect all unique food item IDs from the diet plan
+    all_menu_ids = set()
 
-    # Replace menu item IDs with FoodItem details
     if "menu_plan" in diet_plan:
-        for time, details in diet_plan["menu_plan"]["timings"].items():
-            details["menu"] =  populate_food_items(details["menu"])
+        for details in diet_plan["menu_plan"]["timings"].values():
+            all_menu_ids.update(details["menu"])
 
     if "one_day_detox_plan" in diet_plan:
-        for time, details in diet_plan["one_day_detox_plan"].items():
-            details["menu"] =  populate_food_items(details["menu"])
+        for details in diet_plan["one_day_detox_plan"].values():
+            all_menu_ids.update(details["menu"])
 
-    # Convert _id to string for the diet plan and format timestamps
+    # Batch fetch all food items in one query
+    try:
+        food_items_data = FoodItems.find(
+            {"_id": {"$in": [ObjectId(item_id) for item_id in all_menu_ids]}},
+            {"food_name": 1, "energy_kcal": 1, "quantity": 1, "carbohydrates": 1, "protein": 1}
+        )
+        # Convert to dictionary for quick lookup
+        food_items_dict = {str(item["_id"]): item for item in food_items_data}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to fetch food items.")
+
+    # Replace food item IDs in the menu with detailed information
+    def replace_menu_with_food_details(menu: List[str]) -> List[dict]:
+        return [
+            {
+                "food_name": food_items_dict[item_id]["food_name"],
+                "energy_kcal": food_items_dict[item_id].get("energy_kcal"),
+                "quantity": food_items_dict[item_id].get("quantity"),
+                "carbohydrates": food_items_dict[item_id].get("carbohydrates"),
+                "protein": food_items_dict[item_id].get("protein"),
+            }
+            for item_id in menu if item_id in food_items_dict
+        ]
+
+    # Update the diet plan with populated menu details
+    if "menu_plan" in diet_plan:
+        for details in diet_plan["menu_plan"]["timings"].values():
+            details["menu"] = replace_menu_with_food_details(details["menu"])
+
+    if "one_day_detox_plan" in diet_plan:
+        for details in diet_plan["one_day_detox_plan"].values():
+            details["menu"] = replace_menu_with_food_details(details["menu"])
+
+    # Convert ObjectId to string and format timestamps
     diet_plan["_id"] = str(diet_plan["_id"])
     diet_plan["created_at"] = diet_plan["created_at"]
     diet_plan["updated_at"] = diet_plan["updated_at"]

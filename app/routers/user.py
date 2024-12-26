@@ -219,40 +219,53 @@ async def get_user_details(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Fetch the workout plan and expand exercise details
+    # Fetch the workout plan and expand exercise details
     workout_plan = None
     if 'workout_plan' in user:
         workout_plan_id = user['workout_plan'].get('workout_plan_id')
         if workout_plan_id:
             workout_plan = WorkoutPlans.find_one({'_id': ObjectId(workout_plan_id)})
             if workout_plan:
-                # Fetch exercise details
+                # Collect all exercise IDs from the workout schedule
+                exercise_ids = [
+                    ObjectId(ex_id) for exercises in workout_plan.get('schedule', {}).values() for ex_id in exercises
+                ]
+                
+                # Fetch all exercise details in a single query
+                exercises_map = {
+                    str(exercise['_id']): exercise
+                    for exercise in Exercises.find({'_id': {'$in': exercise_ids}})
+                }
+
+                # Replace exercise IDs with their details using the fetched data
                 for day, exercises in workout_plan.get('schedule', {}).items():
                     workout_plan['schedule'][day] = [
-                         Exercises.find_one({'_id': ObjectId(ex_id)}) for ex_id in exercises
+                        exercises_map.get(ex_id) for ex_id in exercises if ex_id in exercises_map
                     ]
                 workout_plan = convert_object_ids(workout_plan)
 
-    # Fetch the diet plan and expand food item details
-    diet_plan = None
-    if 'diet_plan' in user:
-        diet_plan_id = user['diet_plan'].get('diet_plan_id')
-        if diet_plan_id:
-            diet_plan = DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
-            if diet_plan:
-                # Update your diet plan expansion logic
-                for time_slot, details in diet_plan.get('menu_plan', {}).get('timings', {}).items():
-                    details["menu"] = [
-                        extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
-                        for item_id in details["menu"]
-                    ]
 
-                # Expand menu items in one_day_detox_plan
-                for time_slot, details in diet_plan.get('one_day_detox_plan', {}).items():
-                    details["menu"] = [
-                        extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
-                        for item_id in details["menu"]
-                    ]
-                diet_plan = convert_object_ids(diet_plan)
+    # Fetch the diet plan and expand food item details
+    # diet_plan = None
+    # if 'diet_plan' in user:
+    #     diet_plan_id = user['diet_plan'].get('diet_plan_id')
+    #     if diet_plan_id:
+    #         diet_plan = DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
+    #         if diet_plan:
+    #             # Update your diet plan expansion logic
+    #             for time_slot, details in diet_plan.get('menu_plan', {}).get('timings', {}).items():
+    #                 details["menu"] = [
+    #                     extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
+    #                     for item_id in details["menu"]
+    #                 ]
+
+    #             # Expand menu items in one_day_detox_plan
+    #             for time_slot, details in diet_plan.get('one_day_detox_plan', {}).items():
+    #                 details["menu"] = [
+    #                     extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
+    #                     for item_id in details["menu"]
+    #                 ]
+    #             diet_plan = convert_object_ids(diet_plan)
 
     # Fetch and update subscription plan details
     subscription_plan = user.get("subscription_plan", {})
@@ -310,9 +323,9 @@ async def get_user_details(
             "end_weight": user.get("workout_plan", {}).get("end_weight"),
             "workout_plan_details": workout_plan if workout_plan else None
         },
-        "diet_plan": diet_plan if diet_plan else None,
+        # "diet_plan": diet_plan if diet_plan else None,
         'weight_tracking': user.get("weight_tracking", {}),
-        "screening": user.get("screening", {}),
+        # "screening": user.get("screening", {}),
         "subscription_plan": subscription_plan if subscription_plan else None,  # Include subscription plan here
         "id": str(user["_id"])  # Convert ObjectId to string here
     }
@@ -436,7 +449,6 @@ async def delete_user(
 async def upload_weight(
     user_id: str = Depends(oauth2.require_user), 
     weight: float = Form(...), 
-    height: int = Form(...),
     image: Optional[UploadFile] = File(None) 
 ):
     """
@@ -471,7 +483,6 @@ async def upload_weight(
         new_entry = {
             "datetime": current_datetime,
             "weight": weight,
-            "height": height,
             "photo": None  # Temporarily keep photo as None since Firebase is not working
         }
 
@@ -495,7 +506,6 @@ async def upload_weight(
                 "$push": {"weight_tracking": new_entry},  # Push new weight entry into the weight_tracking array
                 "$set": {
                     "weight": weight,
-                    "height": height,
                     "workout_plan.current_weight": weight
                 } 
             }

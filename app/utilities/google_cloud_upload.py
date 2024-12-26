@@ -105,14 +105,6 @@ def upload_food_item_image(file, food_name) -> str:
     return upload_image_to_gcs(file, folder_name, food_name)
 
 
-def upload_profile_image(file, user_id, file_name) -> str:
-    """
-    Upload the profile photo by the User and store it in the Google Cloud Storage.
-    The folder structure will be: 'level_up/profile_photos/{user_id}/photo{extension}'.
-    """
-    folder_name = f"level_up/user_images/{user_id}/profile_photo"
-    return upload_image_to_gcs(file, folder_name, file_name )
-
 
 def upload_gym_plan_image(file, plan_name) -> str:
     """
@@ -130,6 +122,84 @@ def upload_weight_image(file: UploadFile, user_id: str, file_name: str) -> str:
     """
     folder_name = f"level_up/user_images/{user_id}/weight_track"
     return upload_image_to_gcs(file, folder_name, file_name)
+
+
+
+def upload_profile_image(file, user_id, file_name) -> str:
+    """
+    Upload the profile photo by the User, delete all images in the general 'profile_photo' folder,
+    and store it in Google Cloud Storage under a unique folder with datetime.
+    The folder structure will be: 'level_up/user_images/{user_id}/profile_photo/{datetime}/photo{extension}'.
+    """
+    # Get the current date and time to create a unique folder
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    
+    # Modify the folder structure to include the current datetime
+    folder_name = f"level_up/user_images/{user_id}/profile_photo/{current_datetime}"
+    
+    # Delete all contents in the general 'profile_photo' folder (not the specific datetime folder)
+    delete_all_images_in_folder(f"level_up/user_images/{user_id}/profile_photo")
+    
+    # Upload the new image to the folder
+    return upload_image_to_gcs(file, folder_name, file_name)
+
+
+
+def delete_all_images_in_folder(folder_name: str):
+    """
+    Delete all images in the given folder and attempt to remove the empty folder in Google Cloud Storage.
+    """
+    try:
+        # Initialize Google Cloud Storage client
+        bucket = initialize_google_cloud()  # Initialize GCS
+
+        # List all files in the folder
+        blobs = bucket.list_blobs(prefix=folder_name)
+
+        # Delete each file in the folder
+        for blob in blobs:
+            blob.delete()
+            logger.info(f"Deleted file: {blob.name}")
+
+        # After deleting all files, check if the folder is empty
+        # If it is, delete the folder prefix (which is just the empty folder itself)
+        blobs_after_deletion = bucket.list_blobs(prefix=folder_name)
+        if not any(blobs_after_deletion):  # If no more blobs exist under this prefix
+            logger.info(f"The folder {folder_name} is empty and will not be recreated as a prefix.")
+        
+    except Exception as e:
+        logger.error(f"Error deleting files in folder {folder_name}: {str(e)}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # @router.post('/diet-plan/upload_diet_log')
