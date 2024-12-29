@@ -26,6 +26,10 @@ REFRESH_TOKEN_EXPIRES_IN = settings.REFRESH_TOKEN_EXPIRES_IN
 async def create_user(
     name: str = Form(...),  # Required field for user's name
     email: str = Form(...),  # Required field for user's email
+    age: int = Form(...),
+    height: int = Form(...),
+    weight: float = Form(...),
+    occupation: str = Form(...),
     role: user.UserRole = Form(None),  # Optional field, defaults to 'None'. Role must be one of UserRole if provided
     phone_no: str = Form(...),  # Phone number
     address: str = Form(...),  # Address
@@ -65,6 +69,10 @@ async def create_user(
         # Create the user dictionary
         user_data = {
             "name": name,
+            "age": age,
+            "height": height,
+            "weight": weight,
+            "occupation": occupation,
             "email": email.lower(),
             "role": role,
             "phone_no": phone_no,

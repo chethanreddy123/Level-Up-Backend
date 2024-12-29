@@ -99,10 +99,18 @@ def upload_exercise_image(file, exercise_name) -> str:
 def upload_food_item_image(file, food_name) -> str:
     """
     Upload a food item image to Google Cloud Storage.
-    The folder structure will be: 'level_up/food_items/{food_name}{extension}'.
+    The folder structure will be: 'level_up/food_items/{food_name}_{timestamp}{extension}'.
     """
     folder_name = "level_up/food_items"  # Folder for food item images
-    return upload_image_to_gcs(file, folder_name, food_name)
+
+    # Generate a timestamp for uniqueness
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # Format: YYYYMMDD_HHMMSS
+
+    # Append the timestamp to the food name
+    filename = f"{food_name}_{timestamp}"
+
+    # Upload the image to Google Cloud Storage
+    return upload_image_to_gcs(file, folder_name, filename)
 
 
 

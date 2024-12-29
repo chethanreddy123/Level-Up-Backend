@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 
 class FoodItemSchema(BaseModel):
     food_name: str  # Required field
+    # food_image_url: Optional[str] = None
     energy_kcal: Optional[str] = None
     quantity: Optional[str] = None
     units: Optional[str] = None
@@ -14,7 +15,7 @@ class FoodItemSchema(BaseModel):
     calcium: Optional[str] = None
     phosphorous: Optional[str] = None
     iron: Optional[str] = None
-    vitamin_a: Optional[int] = None
+    vitamin_a: Optional[str] = None
     vitamin_b1: Optional[str] = None
     vitamin_b2: Optional[str] = None
     vitamin_b3: Optional[str] = None
@@ -24,7 +25,7 @@ class FoodItemSchema(BaseModel):
     magnesium: Optional[str] = None
     sodium: Optional[str] = None
     potassium: Optional[str] = None
-    food_image_url: Optional[str] = None,
+    food_image: Optional[str] = None,
     class Config:
         orm_mode = True
 
