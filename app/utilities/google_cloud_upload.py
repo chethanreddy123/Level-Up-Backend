@@ -10,7 +10,7 @@ from app.database import initialize_google_cloud
 
 router = APIRouter()
 
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg"]
+ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg", "image/gif"]
 
 import logging
 

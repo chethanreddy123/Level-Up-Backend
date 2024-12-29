@@ -318,7 +318,7 @@ async def create_exercise(
 
         if workout_image:
             try:
-                workout_image_url = upload_exercise_image(file=workout_image, food_name=name)
+                workout_image_url = upload_exercise_image(file=workout_image, exercise_name=name)
                 exercise_data["workout_image_url"] = workout_image_url  # Store the image URL in the database
             except Exception as e:
                 logger.error(f"Failed to upload exercise image: {str(e)}")

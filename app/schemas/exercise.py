@@ -76,6 +76,7 @@ class ExerciseUpdateSchema(BaseModel):
 class ExerciseResponseSchema(ExerciseCreateSchema):
     id: str  # This will be the MongoDB ObjectId
     message: str
+    workout_image_url: str
     class Config:
         orm_mode = True
         json_encoders = {ObjectId: str}
