@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, Query, Body
 from bson.objectid import ObjectId
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -7,11 +7,13 @@ import logging
 from app.schemas.exercise import UploadWorkoutRequest, WorkoutEntry
 from app.utilities.utils import get_current_ist_time
 from app.database import User, WorkoutandDietTracking, Exercises, WorkoutPlans
-from app.schemas.exercise import  ExerciseCreateSchema, ExerciseUpdateSchema, ExerciseResponseSchema, GetExercises
+from app.schemas.exercise import  ExerciseCreateSchema, ExerciseUpdateSchema, ExerciseResponseSchema, GetExercises, ExerciseType, ExerciseLevel
 from app.schemas.workout_plan import WorkoutPlanDetails, UpdateWorkoutPlanDetails, ModifyWorkoutsUserResponse
 from app.utilities.error_handler import handle_errors
 from motor.motor_asyncio import AsyncIOMotorClient
 from .. import oauth2
+from app.utilities.google_cloud_upload import upload_exercise_image
+
 
 # Initialize the router
 router = APIRouter()
@@ -281,7 +283,13 @@ async def delete_workout_plan(
 
 @router.post('/exercise', status_code=status.HTTP_201_CREATED, response_model=ExerciseResponseSchema)
 async def create_exercise(
-    payload: ExerciseCreateSchema,
+    name: str = Form(...),
+    sets: int = Form(...),
+    reps: int = Form(...),
+    calories: int = Form(...),
+    type: ExerciseType = Form(...),
+    level: ExerciseLevel = Form(...),
+    workout_image: UploadFile = File(...),
     user_id: str = Depends(oauth2.require_user)  # Admin authentication can be enforced using an admin check.
 ):
     """
@@ -291,33 +299,49 @@ async def create_exercise(
         logger.info(f"Creating a new exercise by user ID: {user_id}")
 
         # Check if an exercise with the same name already exists
-        existing_exercise =  Exercises.find_one({'name': payload.name})
+        existing_exercise = Exercises.find_one({'name': name})
         if existing_exercise:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,  # Conflict status code
-                detail=f"Exercise with name '{payload.name}' already exists."
+                detail=f"Exercise with name '{name}' already exists."
             )
 
         # Prepare exercise data
-        exercise_data = payload.dict()
+        exercise_data = {
+            "name": name,
+            "sets": sets,
+            "reps": reps,
+            "calories": calories,
+            "type": type.value,  # Convert Enum to its value
+            "level": level.value,  # Convert Enum to its value
+        }
+
+        if workout_image:
+            try:
+                workout_image_url = upload_exercise_image(file=workout_image, food_name=name)
+                exercise_data["workout_image_url"] = workout_image_url  # Store the image URL in the database
+            except Exception as e:
+                logger.error(f"Failed to upload exercise image: {str(e)}")
+                raise HTTPException(status_code=500, detail="exercise image upload failed")
 
         # Insert new exercise into the Exercises collection
         try:
-            result =  Exercises.insert_one(exercise_data)
+            result = Exercises.insert_one(exercise_data)
         except Exception as e:
-            logger.error(f"Failed to create exercise '{payload.name}': {str(e)}")
+            logger.error(f"Failed to create exercise '{name}': {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create an exercise for {payload.name}. Please try again later."
+                detail=f"Failed to create an exercise for {name}. Please try again later."
             )
 
         # Fetch the newly inserted exercise
-        new_exercise =  Exercises.find_one({'_id': result.inserted_id})
+        new_exercise = Exercises.find_one({'_id': result.inserted_id})
 
         return ExerciseResponseSchema(
             id=str(new_exercise['_id']),
-            message="Exercise created successfully!", 
-            **new_exercise)
+            message="Exercise created successfully!",
+            **new_exercise
+        )
 
 
 @router.get('/exercises', response_model=dict)
@@ -406,7 +430,10 @@ async def get_single_exercise(
                 detail="Exercise not found."
             )
 
-        return ExerciseResponseSchema(id=str(exercise['_id']), **exercise)
+        return ExerciseResponseSchema(
+            id=str(exercise['_id']), 
+            message="Exercise retrieved successfully!",
+            **exercise)
 
 
 @router.put('/exercise/{exercise_id}', response_model=ExerciseResponseSchema)
