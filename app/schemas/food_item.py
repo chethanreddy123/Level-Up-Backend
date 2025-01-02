@@ -25,7 +25,7 @@ class FoodItemSchema(BaseModel):
     magnesium: Optional[str] = None
     sodium: Optional[str] = None
     potassium: Optional[str] = None
-    food_image: Optional[str] = None,
+    food_image_url: Optional[str] = None,
     class Config:
         orm_mode = True
 
