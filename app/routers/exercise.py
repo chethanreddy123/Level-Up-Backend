@@ -551,7 +551,6 @@ async def upload_workout_task(
                             "reps_done": payload.workout.reps_done,
                             "load_assigned": payload.workout.load_assigned,
                             "load_done": payload.workout.load_done,
-                            "intensity": payload.workout.intensity,
                             "performance": payload.workout.performance,
                             "updated_at": formatted_time
                         }
@@ -592,7 +591,6 @@ async def upload_workout_task(
                 "reps_done": payload.workout.reps_done,
                 "load_assigned": payload.workout.load_assigned,
                 "load_done": payload.workout.load_done,
-                "intensity": payload.workout.intensity,
                 "performance": payload.workout.performance,
                 "updated_at": formatted_time
             }

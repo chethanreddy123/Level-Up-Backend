@@ -219,7 +219,6 @@ async def get_user_details(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Fetch the workout plan and expand exercise details
-    # Fetch the workout plan and expand exercise details
     workout_plan = None
     if 'workout_plan' in user:
         workout_plan_id = user['workout_plan'].get('workout_plan_id')
@@ -244,28 +243,6 @@ async def get_user_details(
                     ]
                 workout_plan = convert_object_ids(workout_plan)
 
-
-    # Fetch the diet plan and expand food item details
-    # diet_plan = None
-    # if 'diet_plan' in user:
-    #     diet_plan_id = user['diet_plan'].get('diet_plan_id')
-    #     if diet_plan_id:
-    #         diet_plan = DietPlans.find_one({'_id': ObjectId(diet_plan_id)})
-    #         if diet_plan:
-    #             # Update your diet plan expansion logic
-    #             for time_slot, details in diet_plan.get('menu_plan', {}).get('timings', {}).items():
-    #                 details["menu"] = [
-    #                     extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
-    #                     for item_id in details["menu"]
-    #                 ]
-
-    #             # Expand menu items in one_day_detox_plan
-    #             for time_slot, details in diet_plan.get('one_day_detox_plan', {}).items():
-    #                 details["menu"] = [
-    #                     extract_food_details(FoodItems.find_one({'_id': ObjectId(item_id)})) 
-    #                     for item_id in details["menu"]
-    #                 ]
-    #             diet_plan = convert_object_ids(diet_plan)
 
     # Fetch and update subscription plan details
     subscription_plan = user.get("subscription_plan", {})
@@ -655,3 +632,47 @@ def get_weight_details(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing your request."
         )
+    
+
+# Route to check the plan validity (used at the loading page in the flutter app to account for plan expiry)
+@router.get('/user/check_plan_validity/{user_id}', status_code=200)
+async def check_plan_validity(
+    user_id: str,
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Check if the user's subscription plan is still valid by comparing the current time
+    with the plan's end_date. Returns the validity status.
+    """
+    with handle_errors():
+        # Fetch the user's subscription plan from the database
+        user = User.find_one({"_id": ObjectId(user_id)})
+        
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
+        # Check if the user has a subscription plan
+        if "subscription_plan" not in user:
+            raise HTTPException(
+                status_code=400,
+                detail="User does not have a subscription plan"
+            )
+
+        # Get the end_date from the subscription plan
+        end_date_str = str(user["subscription_plan"]["end_date"])
+        end_date = datetime.fromisoformat(end_date_str)  # Convert string to datetime object
+
+        # Compare the current time with the end_date
+        current_time = datetime.utcnow()
+        is_valid = current_time < end_date
+
+        # Return the validity status
+        return {
+            "status": "success",
+            "is_valid": is_valid,
+            "end_date": end_date_str,
+            "current_time": current_time.isoformat()
+        }
