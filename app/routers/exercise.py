@@ -436,7 +436,7 @@ async def get_single_exercise(
             **exercise)
 
 
-@router.put('/exercise/{exercise_id}', response_model=ExerciseResponseSchema)
+@router.put('/exercise/{exercise_id}', response_model=dict)
 async def update_exercise(
     exercise_id: str,
     payload: ExerciseUpdateSchema,
@@ -462,7 +462,7 @@ async def update_exercise(
         update_data = {k: v for k, v in payload.dict().items() if v is not None}
 
         # Update exercise in the collection
-        update_result =  Exercises.find_one_and_update(
+        update_result = Exercises.find_one_and_update(
             {"_id": exercise_obj_id},
             {"$set": update_data},
             return_document=True
@@ -474,10 +474,9 @@ async def update_exercise(
                 detail="Exercise not found."
             )
 
-        return ExerciseResponseSchema(
-            id=str(update_result['_id']), 
-            message="Exercise updated successfully!",
-            **update_result)
+        logger.info(f"Exercise with ID: {exercise_id} updated successfully.")
+        return {"message": "Exercise updated successfully!"}
+
 
 
 @router.delete('/exercise/{exercise_id}', status_code=status.HTTP_200_OK)
