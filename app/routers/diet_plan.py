@@ -151,7 +151,7 @@ async def get_diet_plan_for_user(
     try:
         food_items_data = FoodItems.find(
             {"_id": {"$in": [ObjectId(item_id) for item_id in all_menu_ids]}},
-            {"food_name": 1, "energy_kcal": 1, "quantity": 1, "carbohydrates": 1, "protein": 1}
+            {"food_name": 1, "energy_kcal": 1, "quantity": 1, "carbohydrates": 1, "protein": 1, "food_image_url": 1}
         )
         # Convert to dictionary for quick lookup
         food_items_dict = {str(item["_id"]): item for item in food_items_data}
