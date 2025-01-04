@@ -167,6 +167,7 @@ async def get_diet_plan_for_user(
                 "quantity": food_items_dict[item_id].get("quantity"),
                 "carbohydrates": food_items_dict[item_id].get("carbohydrates"),
                 "protein": food_items_dict[item_id].get("protein"),
+                "food_image_url": food_items_dict[item_id].get("food_image_url")
             }
             for item_id in menu if item_id in food_items_dict
         ]
