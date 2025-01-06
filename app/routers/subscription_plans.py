@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 import loguru
 from pydantic import PositiveInt
 from app.database import GymPlans, User  # Assuming GymPlans is the MongoDB collection
-from app.schemas.subscription_plans import GymPlanSchema, GymPlanUpdateSchema
+from app.schemas.subscription_plans import  GymPlanUpdateSchema
 from app.utilities.error_handler import handle_errors
 from app import oauth2
 from bson import ObjectId
@@ -25,7 +25,7 @@ def calculate_remaining_days(today, end_date):
 @router.post('/gym-plan', status_code=status.HTTP_201_CREATED)
 async def create_gym_plan(
     plan_name: str = Form(...),  # Required field for gym plan name
-    duration: PositiveInt = Form(...),    # Duration should be an integer (1, 3, 6, or 12)
+    duration: PositiveInt = Form(...),    
     price: float = Form(...),    # Price should be a float
     image: UploadFile = File(None),  # Optional image upload
     user_id: str = Depends(oauth2.require_user)  # Assuming you have an oauth2 dependency for user authentication
@@ -60,7 +60,7 @@ async def create_gym_plan(
         # Prepare the gym plan data
         gym_plan_data = {
             "plan_name": plan_name,
-            "duration (days)": duration,  # Format duration as a string
+            "duration": duration,  # Format duration as a string
             "price": price,
         }
 
@@ -130,12 +130,12 @@ async def get_gym_plan(plan_id: str, auth_user_id: str = Depends(oauth2.require_
 
         return gym_plan
     
-# Update an existing gym plan
 @router.put('/gym-plan/{plan_id}', status_code=status.HTTP_200_OK)
 async def update_gym_plan(
     plan_id: str, 
     payload: GymPlanUpdateSchema, 
-    auth_user_id: str = Depends(oauth2.require_user)):
+    auth_user_id: str = Depends(oauth2.require_user)
+):
     """
     Update a gym subscription plan by its ID.
     Allows updating one or more fields (plan_name, duration, price).
@@ -160,13 +160,10 @@ async def update_gym_plan(
         # Prepare the update data, updating only the fields that are provided
         update_data = payload.dict(exclude_unset=True)  # Only include fields provided in the request
 
-        # If the duration field is updated, convert it to the string format
-        if update_data.get('duration') is not None:
-            if update_data['duration'] == 1:
-                update_data['duration'] = "1 month"
-            else:
-                update_data['duration'] = f"{update_data['duration']} months"
-        
+        # # The 'duration' field is updated as an integer directly (no need for string conversion)
+        # if update_data.get('duration') is not None:
+        #     update_data['duration'] = update_data['duration']  # Keep it as an integer
+
         # Update the gym plan in the database
         updated_gym_plan = GymPlans.find_one_and_update(
             {"_id": ObjectId(plan_id)}, 
@@ -184,6 +181,8 @@ async def update_gym_plan(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update the gym plan."
         )
+
+
     
 # Delete a gym plan by ID
 @router.delete('/gym-plan/{plan_id}', status_code=status.HTTP_200_OK)
