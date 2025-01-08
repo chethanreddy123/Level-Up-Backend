@@ -248,19 +248,24 @@ async def get_all_exercises(user_id: str = Depends(oauth2.require_user)):
 
 @router.get('/get-workout-plans', status_code=status.HTTP_200_OK)
 async def get_all_workout_plans(
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    items_per_page: int = Query(10, le=100, description="Number of items per page"),
     user_id: str = Depends(oauth2.require_user)
 ):
     """
-    Retrieve all workout plans for the user, including exercise details.
+    Retrieve all workout plans for the user, including exercise details, with pagination.
     """
     with handle_errors():
-        # Look up all workout plans for the user
-        workout_plans = WorkoutPlans.find()  
+        # Calculate how many documents to skip for pagination
+        skip = (page - 1) * items_per_page
+
+        # Look up all workout plans for the user (no user_id filter as you requested all plans)
+        workout_plans = list(WorkoutPlans.find().skip(skip).limit(items_per_page))
 
         if not workout_plans:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No workout plans found for the user."
+                detail="No workout plans found."
             )
 
         # Initialize a list to hold the full workout plan data
@@ -299,4 +304,15 @@ async def get_all_workout_plans(
 
             full_workout_plans.append(workout_plan)
 
-        return {"status": "success", "workout_plans": full_workout_plans}
+        # Count the total number of workout plans to calculate the total number of pages
+        total_items = WorkoutPlans.count_documents({})
+        total_pages = (total_items + items_per_page - 1) // items_per_page
+
+        return {
+            "status": "success",
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "current_page": page,
+            "items_per_page": items_per_page,
+            "workout_plans": full_workout_plans
+        }

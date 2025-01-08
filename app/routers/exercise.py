@@ -612,9 +612,9 @@ async def upload_workout_task(
             }
 
 
-@router.get('/exercise/workout_logs/{user_id}')
+@router.get('/get_workout_logs')
 async def get_workout_logs(
-    user_id: str,  # Path parameter for user ID
+    user_id: str = Query(..., description="UserId of the user"),  # Path parameter for user ID
     auth_user_id: str = Depends(oauth2.require_user),  # Authenticated user ID
     from_date: str = Query(..., description="Start date for workout logs (format: dd-mm-yyyy)"),
     to_date: str = Query(..., description="End date for workout logs (format: dd-mm-yyyy)")
