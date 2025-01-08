@@ -244,3 +244,59 @@ async def get_all_exercises(user_id: str = Depends(oauth2.require_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while fetching exercises: {str(e)}"
         )
+
+
+@router.get('/get-workout-plans', status_code=status.HTTP_200_OK)
+async def get_all_workout_plans(
+    user_id: str = Depends(oauth2.require_user)
+):
+    """
+    Retrieve all workout plans for the user, including exercise details.
+    """
+    with handle_errors():
+        # Look up all workout plans for the user
+        workout_plans = WorkoutPlans.find()  
+
+        if not workout_plans:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No workout plans found for the user."
+            )
+
+        # Initialize a list to hold the full workout plan data
+        full_workout_plans = []
+
+        for workout_plan in workout_plans:
+            # Extract all unique exercise IDs from the workout plan schedule
+            exercise_ids = set(
+                exercise_id for day_exercises in workout_plan["schedule"].values() for exercise_id in day_exercises
+            )
+
+            # Convert exercise IDs to ObjectIds
+            try:
+                exercise_object_ids = [ObjectId(exercise_id) for exercise_id in exercise_ids]
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid exercise ID format: {str(e)}"
+                )
+
+            # Fetch all exercises by their ObjectIds (synchronously)
+            exercises = list(Exercises.find({"_id": {"$in": exercise_object_ids}}))
+
+            # Create a dictionary mapping exercise ObjectId to exercise data
+            exercise_dict = {str(exercise["_id"]): exercise for exercise in exercises}
+
+            # Replace exercise IDs with exercise data in the workout plan schedule
+            for day, exercise_ids_in_day in workout_plan["schedule"].items():
+                workout_plan["schedule"][day] = [
+                    exercise_dict.get(str(exercise_id), {"error": f"Exercise ID {exercise_id} not found"})
+                    for exercise_id in exercise_ids_in_day
+                ]
+
+            # Use jsonable_encoder to convert the ObjectIds to strings
+            workout_plan = jsonable_encoder(workout_plan, custom_encoder={ObjectId: str})
+
+            full_workout_plans.append(workout_plan)
+
+        return {"status": "success", "workout_plans": full_workout_plans}
