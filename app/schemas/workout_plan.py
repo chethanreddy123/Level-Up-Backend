@@ -109,6 +109,7 @@ class UpdateWorkoutPlanDetails(BaseModel):
     end_date: Optional[date] = None  # End date of the workout plan
     current_weight: Optional[float] = None  # The user's current weight
     end_weight: Optional[float] = None  # Target weight to achieve
+    current_height: Optional[int] = None
     workout_plan_id: Optional[str] = None  # The ID of the workout plan
 
     class Config:
