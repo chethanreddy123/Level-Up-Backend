@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Optional
 from bson.objectid import ObjectId
 from fastapi import APIRouter, File, Form, Response, UploadFile, status, Depends, HTTPException
 import loguru
@@ -27,9 +28,9 @@ async def create_user(
     name: str = Form(...),  # Required field for user's name
     email: str = Form(...),  # Required field for user's email
     age: int = Form(...),
-    height: int = Form(...),
-    weight: float = Form(...),
-    occupation: str = Form(...),
+    height: Optional[int] = Form(None),
+    weight: Optional[float] = Form(None),
+    occupation: Optional[str] = Form(None),
     role: user.UserRole = Form(None),  # Optional field, defaults to 'None'. Role must be one of UserRole if provided
     phone_no: str = Form(...),  # Phone number
     address: str = Form(...),  # Address
