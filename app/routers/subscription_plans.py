@@ -313,7 +313,7 @@ async def add_gym_plan(
             )
 
         # Log the addition of the gym plan
-        loguru.logger.info(f"User {user_id} subscribed to {gym_plan['plan_name']} for {gym_plan['duration (days)']} at {gym_plan['price']}.")
+        loguru.logger.info(f"User {user_id} subscribed to {gym_plan['plan_name']} for {gym_plan['duration']} at {gym_plan['price']}.")
 
         # Return a success message
         return {
