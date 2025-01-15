@@ -284,20 +284,18 @@ async def add_gym_plan(
                 detail=f"Subscription plan with ID {subscription_plan_id} not found in GymPlans"
             )
 
-        # Parse the 'duration' field (e.g., '3 months', '6 months') and convert to days
-        duration_in_days = gym_plan["duration (days)"]
 
         # Get today's date
         today = datetime.utcnow()
 
         # Calculate the date the subscription will end
-        end_date = today + timedelta(days=duration_in_days)
+        end_date = today + timedelta(days=gym_plan['duration'])
 
         # Prepare the subscription plan to add to the user
         subscription_plan = {
             "plan_name": gym_plan["plan_name"],
             "date_added": today,  # Store the date when the plan was added
-            "duration": duration_in_days,  # Store the duration in days
+            "duration": gym_plan['duration'],  # Store the duration in days
             "remaining_days": calculate_remaining_days(today, end_date),  # Calculate remaining days
             "end_date": end_date  # Store the actual end date
         }
