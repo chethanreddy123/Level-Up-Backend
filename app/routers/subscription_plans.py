@@ -293,6 +293,7 @@ async def add_gym_plan(
 
         # Prepare the subscription plan to add to the user
         subscription_plan = {
+            "plan_id": str(gym_plan["_id"]),
             "plan_name": gym_plan["plan_name"],
             "date_added": today,  # Store the date when the plan was added
             "duration": gym_plan['duration'],  # Store the duration in days
@@ -512,4 +513,44 @@ async def update_gym_plan(
         return {
             "status": "success",
             "message": f"Subscription plan updated for user {user_id}."
+        }
+    
+
+@router.get('/gym-plan/users/{plan_id}', status_code=status.HTTP_200_OK)
+async def get_users_by_plan(
+    plan_id: str,  # Plan ID passed as a path parameter
+    auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
+):
+    """
+    Retrieve a list of users who have subscribed to a specific gym plan.
+    The plan_id is used to filter users in the User collection.
+    """
+    with handle_errors():
+        # Fetch users who have the specified plan_id in their subscription_plan
+        users = User.find({"subscription_plan.plan_id": plan_id})
+
+        if not users:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No users found with subscription plan ID {plan_id}"
+            )
+
+        # Prepare the response with user details
+        user_list = []
+        for user in users:
+            user_list.append({
+                "user_id": str(user["_id"]),
+                "username": user.get("name", "N/A"),
+                "levelup_id": user.get("registration_id", "N/A"),
+                "photo": user.get("photo", "N/A")
+            })
+
+        # Log the retrieval of users by plan
+        loguru.logger.info(f"Retrieved {len(user_list)} users with subscription plan ID {plan_id}.")
+
+        # Return the list of users
+        return {
+            "status": "success",
+            "message": f"Found {len(user_list)} users with subscription plan ID {plan_id}.",
+            "users": user_list
         }
