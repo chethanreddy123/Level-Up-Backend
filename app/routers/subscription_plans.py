@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 import loguru
 from pydantic import PositiveInt
 from app.database import GymPlans, User  # Assuming GymPlans is the MongoDB collection
@@ -448,10 +448,10 @@ async def delete_gym_plan(
             "message": f"Subscription plan deleted for user {user_id}."
         }
     
-@router.put('/update-gym-plan/{user_id}/{plan_id}', status_code=status.HTTP_200_OK)
+@router.put('/update-gym-plan', status_code=status.HTTP_200_OK)
 async def update_gym_plan(
-    user_id: str,  # User ID as a path parameter
-    plan_id: str,  # Plan ID as a path parameter
+    user_id: str = Query(...),  # User ID as a path parameter
+    plan_id: str = Query(...),  # Plan ID as a path parameter
     auth_user_id: str = Depends(oauth2.require_user)  # Ensure the user is authenticated
 ):
     """
