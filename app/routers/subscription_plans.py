@@ -352,7 +352,15 @@ async def get_gym_plan(
 
         # Get the user's current subscription plan
         subscription_plan = user["subscription_plan"]
-        end_date = subscription_plan["end_date"]
+        end_date = subscription_plan.get("end_date")
+
+        # Ensure end_date is a valid datetime object
+        if not isinstance(end_date, datetime):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid end_date format in the database"
+            )
+
         today = datetime.utcnow()
 
         # Calculate remaining days
@@ -360,11 +368,6 @@ async def get_gym_plan(
 
         # If the subscription has expired, update the subscription details
         if remaining_days <= 0:
-            # Here, you can choose to either:
-            # 1. Set the plan as expired and remove it
-            # 2. Or, reassign the plan with a new one (if applicable)
-            # For this example, we will simply mark the plan as expired.
-
             # Update the user document to mark the subscription as expired
             User.update_one(
                 {"_id": ObjectId(user_id)},
@@ -384,7 +387,7 @@ async def get_gym_plan(
 
             # Set the status as 'active'
             subscription_plan["status"] = "active"
-            
+
         # Prepare the response data
         return {
             "status": "success",
@@ -395,11 +398,10 @@ async def get_gym_plan(
                 "date_added": subscription_plan["date_added"],
                 "duration": subscription_plan["duration"],
                 "remaining_days": remaining_days,
-                "end_date": subscription_plan["end_date"],
+                "end_date": end_date.isoformat(),  # Convert datetime to ISO format for JSON response
                 "status": subscription_plan.get("status", "active")  # Include status (active/expired)
             }
-        }  
-
+        }
 
 @router.delete('/gym-plan/remove_user/{user_id}', status_code=status.HTTP_200_OK)
 async def delete_gym_plan(
