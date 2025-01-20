@@ -301,8 +301,8 @@ async def get_user_details(
             "workout_plan_details": workout_plan if workout_plan else None
         },
         # "diet_plan": diet_plan if diet_plan else None,
-        'weight_tracking': user.get("weight_tracking", {}),
-        # "screening": user.get("screening", {}),
+        'weight_tracking': user.get("weight_tracking", []),
+        "screening": user.get("screening", {}),
         "subscription_plan": subscription_plan if subscription_plan else None,  # Include subscription plan here
         "id": str(user["_id"])  # Convert ObjectId to string here
     }
