@@ -1,14 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import initialize_database
-from app.utilities import google_cloud_upload
 from config import settings
-from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management, subscription_plans, user_attendance 
+from app.routers import auth, user, forms, screening, exercise, workout_plan, diet_plan, food_item, slot_management, subscription_plans, user_attendance
+import config 
 app = FastAPI()
 
-origins = [
-    settings.CLIENT_ORIGIN,
-]
+# Get allowed origins from settings
+origins = config.get_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,

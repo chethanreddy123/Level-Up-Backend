@@ -1,3 +1,4 @@
+from typing import List
 from pydantic import BaseSettings
 
 class Settings(BaseSettings):
@@ -17,3 +18,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def get_allowed_origins() -> List[str]:
+    return settings.CLIENT_ORIGIN.split(",") if settings.CLIENT_ORIGIN else []
