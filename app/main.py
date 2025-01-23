@@ -7,7 +7,8 @@ import config
 app = FastAPI()
 
 # Get allowed origins from settings
-origins = config.get_allowed_origins()
+
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Include your routers
 app.include_router(auth.router, tags=['Auth'], prefix='/api/auth')
