@@ -315,7 +315,7 @@ async def get_user_details(
 def get_users(
     page: int = Query(1, ge=1, description="Page number for pagination"),
     items_per_page: int = Query(10, ge=1, le=100, description="Number of items per page"),
-    filters: Optional[str] = Query(None, description="Filters for ordering and role, e.g., {'order': 'asc', 'role': 'ADMIN'}"),
+    filters: Optional[str] = Query(None, description="Filters for ordering and role, e.g., {'order': 'desc', 'role': 'ADMIN'}"),
     user_id: str = Depends(oauth2.require_user)  # Ensure that the user is authenticated
 ):
     """
@@ -323,7 +323,7 @@ def get_users(
     """
     with handle_errors():
         query_filter = {}
-        sort_order = 1  # Default ascending order
+        sort_order = -1  # Default descending order
         
         # Parse the filters JSON string into a dictionary if it's provided
         if filters:
