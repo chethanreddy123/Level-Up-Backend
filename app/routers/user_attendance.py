@@ -228,3 +228,45 @@ def get_attendance(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing your request."
         )
+    
+@router.get('/check-attendance/{user_id}', status_code=status.HTTP_200_OK)
+def check_attendance(
+    user_id: str
+):
+    """
+    Check if the user has marked attendance for the current day.
+    Returns:
+        - `true` if the user has marked attendance (present).
+        - `false` if the user has not marked attendance (absent).
+    """
+    try:
+        # Get the current date in UTC
+        current_date_utc = datetime.utcnow()
+
+        # Calculate the start and end of the current day in UTC
+        start_of_day = datetime(current_date_utc.year, current_date_utc.month, current_date_utc.day)
+        end_of_day = start_of_day + timedelta(days=1)
+
+        # Check if the user has marked attendance for the current date range
+        attendance_record = UserAttendance.find_one({
+            "user_id": user_id,
+            "date": {
+                "$gte": start_of_day,  # Greater than or equal to the start of the day
+                "$lt": end_of_day      # Less than the start of the next day
+            }
+        })
+
+        if attendance_record:
+            # If attendance is marked, return True if status is True (present), else False
+            return {"has_marked_attendance": attendance_record.get("status", False)}
+        else:
+            # If no attendance record is found, the user has not marked attendance
+            return {"has_marked_attendance": False}
+
+    except Exception as e:
+        # Log the full exception with stack trace
+        logger.error(f"Exception occurred: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing your request."
+        )
